@@ -1,6 +1,7 @@
 # task-running
 ESCOPO DO PROJETO — TASK RUNNING
 
+
 1.1 Contexto e Problema
 
 O sedentarismo é uma das maiores ameaças à saúde pública global do século XXI. De acordo com dados recentes da Organização Mundial da Saúde (OMS) divulgados em parceria com o Hospital Sírio-Libanês, cerca de 47% da população adulta no Brasil é sedentária. O cenário é ainda mais alarmante entre as novas gerações: 84% dos jovens brasileiros não praticam a quantidade mínima recomendada de atividades físicas. Atualmente, o Brasil ocupa o quinto lugar no ranking mundial de sedentarismo e lidera de forma preocupante na América Latina.
