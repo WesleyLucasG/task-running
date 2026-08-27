@@ -19,3 +19,8 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
+
+  api:
+    security:
+      token:
+        secret: ${JWT_SECRET:chave-secreta-padrao-desenvolvimento-task-running-2026}
