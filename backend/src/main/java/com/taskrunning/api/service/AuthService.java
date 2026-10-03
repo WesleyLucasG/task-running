@@ -47,20 +47,20 @@ public class AuthService {
 
     @Transactional
     public void cadastrar(CadastroUsuarioDTO dto)  {
-        if(usuarioRepository.existsByEmail(dto.getEmail())){
+        if(usuarioRepository.existsByEmail(dto.email())){
             throw new BusinessRuleException("Email já cadastrado no sistema.");
         }
-        if(usuarioRepository.existsByCpf(dto.getCpf())){
+        if(usuarioRepository.existsByCpf(dto.cpf())){
             throw new BusinessRuleException("CPF já cadastrado no sistema.");
         }
 
         Usuario usuario = new Usuario();
-        usuario.setNome(dto.getNome());
-        usuario.setEmail(dto.getEmail());
-        usuario.setCpf(dto.getCpf());
-        usuario.setPeso(dto.getPeso());
+        usuario.setNome(dto.nome());
+        usuario.setEmail(dto.email());
+        usuario.setCpf(dto.cpf());
+        usuario.setPeso(dto.peso());
         usuario.calcularMetaAgua();
-        usuario.setSenha(passwordEncoder.encode(dto.getSenha()));
+        usuario.setSenha(passwordEncoder.encode(dto.senha()));
         usuarioRepository.save(usuario);
 
         ConfiguracaoHidratacao  configuracao = new ConfiguracaoHidratacao();
@@ -73,10 +73,10 @@ public class AuthService {
         }
 
     public TokenResponseDTO login(LoginDTO dto) {
-        Usuario usuario = usuarioRepository.findByEmail(dto.getEmail())
+        Usuario usuario = usuarioRepository.findByEmail(dto.email())
                 .orElseThrow(() -> new BusinessRuleException("E-mail ou senha inválidos."));
 
-        if (!passwordEncoder.matches(dto.getSenha(), usuario.getSenha())) {
+        if (!passwordEncoder.matches(dto.senha(), usuario.getSenha())) {
             throw new BusinessRuleException("E-mail ou senha inválidos.");
         }
 
@@ -86,7 +86,7 @@ public class AuthService {
 
     @Transactional
     public String recuperarSenha(ForgotPasswordDTO dto) {
-        Optional<Usuario> usuarioOpt = usuarioRepository.findByEmail(dto.getEmail());
+            Optional<Usuario> usuarioOpt = usuarioRepository.findByEmail(dto.email());
 
         if (usuarioOpt.isPresent()) {
             Usuario usuario = usuarioOpt.get();
@@ -106,7 +106,7 @@ public class AuthService {
     }
 
     public void redefinirSenha(ResetPasswordDTO dto){
-        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(dto.getToken())
+            PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(dto.token())
                 .orElseThrow(() -> new BusinessRuleException("Token de recuperação inválido ou inexistente"));
         if(resetToken.isUsado()){
             throw new BusinessRuleException("Este token de recuperação já foi utilizado.");
@@ -116,7 +116,7 @@ public class AuthService {
         }
 
         Usuario usuario = resetToken.getUsuario();
-        usuario.setSenha(passwordEncoder.encode(dto.getNovaSenha()));
+        usuario.setSenha(passwordEncoder.encode(dto.novaSenha()));
         usuarioRepository.save(usuario);
 
         resetToken.setUsado(true);
