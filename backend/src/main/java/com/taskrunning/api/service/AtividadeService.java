@@ -27,6 +27,7 @@ public class AtividadeService {
     private final AtividadeRepository atividadeRepository;
     private final PontoGpsRepository pontoGpsRepository;
     private final UsuarioRepository usuarioRepository;
+    private final GamificacaoService gamificacaoService; // 1. Dependência injetada
 
     @Transactional
     public AtividadeResponseDTO sincronizarAtividade(String email, SincronizarAtividadeRequestDTO dto) {
@@ -81,6 +82,9 @@ public class AtividadeService {
         Atividade atividadeSalva = atividadeRepository.save(atividade);
         pontoGpsRepository.saveAll(pontosGpsList);
         atividadeSalva.setPontosGps(pontosGpsList);
+
+        // 2. Credita a recompensa ANTES de retornar a resposta
+        gamificacaoService.creditarRecompensaAtividade(usuario, atividadeSalva.getCalorias(), atividadeSalva.getDistanciaMetros());
 
         return mapearParaDTO(atividadeSalva);
     }
