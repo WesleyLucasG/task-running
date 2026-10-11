@@ -26,22 +26,22 @@ public class UsuarioService {
     public PerfilResponseDTO atualizarPerfil(String email, AtualizarPerfilRequestDTO dto) {
         Usuario usuario = buscarPorEmail(email);
 
-        usuario.setNome(dto.nome());
-        usuario.setPeso(dto.peso());
-
-        if (dto.peso() != null && dto.peso() > 0) {
-            usuario.setMetaAguaMl(dto.peso() * 35.0);
+        if (dto.nome() != null && !dto.nome().isBlank()) {
+            usuario.setNome(dto.nome());
         }
 
-        usuarioRepository.save(usuario);
+        if (dto.peso() != null && dto.peso() > 0) {
+            usuario.setPeso(dto.peso());
+            usuario.setMetaAguaMl(dto.peso() * 35.0);
 
-        if (usuario.getMetaAguaMl() != null) {
             configuracaoHidratacaoRepository.findByUsuarioId(usuario.getId())
                     .ifPresent(config -> {
                         config.setMetaDiariaMl(usuario.getMetaAguaMl().intValue());
                         configuracaoHidratacaoRepository.save(config);
                     });
         }
+
+        usuarioRepository.save(usuario);
 
         return mapearParaDTO(usuario);
     }
