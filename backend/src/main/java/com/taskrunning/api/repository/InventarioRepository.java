@@ -11,5 +11,6 @@ import java.util.Optional;
 public interface InventarioRepository extends JpaRepository<Inventario, Long> {
     List<Inventario> findByUsuarioId(Long usuarioId);
     Optional<Inventario> findByUsuarioIdAndAvatarId(Long usuarioId, Long avatarId);
+    boolean existsByUsuarioIdAndAvatarId(Long usuarioId, Long avatarId);
     Optional<Inventario> findByUsuarioIdAndEquipadoTrue(Long usuarioId);
 }
