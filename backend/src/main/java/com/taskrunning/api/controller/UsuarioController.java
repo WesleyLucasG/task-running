@@ -29,4 +29,10 @@ public class UsuarioController {
         PerfilResponseDTO perfilAtualizado = usuarioService.atualizarPerfil(authentication.getName(), dto);
         return ResponseEntity.ok(perfilAtualizado);
     }
+
+    @DeleteMapping
+    public ResponseEntity<Void> deletarPerfil(Authentication authentication) {
+        usuarioService.deletarPerfil(authentication.getName());
+        return ResponseEntity.noContent().build();
+    }
 }

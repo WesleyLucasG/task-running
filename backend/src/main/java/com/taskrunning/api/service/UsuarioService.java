@@ -62,4 +62,10 @@ public class UsuarioService {
                 usuario.getPerfil() != null ? usuario.getPerfil().name() : "USER"
         );
     }
+
+    @Transactional
+    public void deletarPerfil(String email) {
+        Usuario usuario = buscarPorEmail(email);
+        usuarioRepository.delete(usuario);
+    }
 }
