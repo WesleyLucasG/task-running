@@ -66,6 +66,6 @@ public class UsuarioService {
     @Transactional
     public void deletarPerfil(String email) {
         Usuario usuario = buscarPorEmail(email);
-        usuarioRepository.delete(usuario);
+        usuarioRepository.deletarUsuarioPorIdNativo(usuario.getId());
     }
 }
