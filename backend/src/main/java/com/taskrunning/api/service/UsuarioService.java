@@ -64,18 +64,17 @@ public class UsuarioService {
     }
 
     @Transactional
-    public void deletarPerfil(String email) {
-        Usuario usuario = buscarPorEmail(email);
-        usuarioRepository.deletarUsuarioPorIdNativo(usuario.getId());
-        usuarioRepository.deletarPontosGpsPorUsuarioId(usuarioId);
-        usuarioRepository.deletarAtividadesPorUsuarioId(usuarioId);
-        usuarioRepository.deletarRegistrosHidratacaoPorUsuarioId(usuarioId);
-        usuarioRepository.deletarInventarioPorUsuarioId(usuarioId);
-        usuarioRepository.deletarCarteiraPorUsuarioId(usuarioId);
-        usuarioRepository.deletarConfiguracaoHidratacaoPorUsuarioId(usuarioId);
-        usuarioRepository.deletarTokensRecuperacaoPorUsuarioId(usuarioId);
+        public void deletarPerfil(String email) {
+            Usuario usuario = buscarPorEmail(email);
     
-        usuarioRepository.deletarUsuarioPorIdNativo(usuarioId);
-
-    }
+            usuarioRepository.deletarPontosGpsPorUsuarioId(usuario.getId());
+            usuarioRepository.deletarAtividadesPorUsuarioId(usuario.getId());
+            usuarioRepository.deletarRegistrosHidratacaoPorUsuarioId(usuario.getId());
+            usuarioRepository.deletarInventarioPorUsuarioId(usuario.getId());
+            usuarioRepository.deletarCarteiraPorUsuarioId(usuario.getId());
+            usuarioRepository.deletarConfiguracaoHidratacaoPorUsuarioId(usuario.getId());
+            usuarioRepository.deletarTokensRecuperacaoPorUsuarioId(usuario.getId());
+    
+            usuarioRepository.deletarUsuarioPorIdNativo(usuario.getId());
+        }
 }
