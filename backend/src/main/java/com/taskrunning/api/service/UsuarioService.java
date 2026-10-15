@@ -67,5 +67,15 @@ public class UsuarioService {
     public void deletarPerfil(String email) {
         Usuario usuario = buscarPorEmail(email);
         usuarioRepository.deletarUsuarioPorIdNativo(usuario.getId());
+        usuarioRepository.deletarPontosGpsPorUsuarioId(usuarioId);
+        usuarioRepository.deletarAtividadesPorUsuarioId(usuarioId);
+        usuarioRepository.deletarRegistrosHidratacaoPorUsuarioId(usuarioId);
+        usuarioRepository.deletarInventarioPorUsuarioId(usuarioId);
+        usuarioRepository.deletarCarteiraPorUsuarioId(usuarioId);
+        usuarioRepository.deletarConfiguracaoHidratacaoPorUsuarioId(usuarioId);
+        usuarioRepository.deletarTokensRecuperacaoPorUsuarioId(usuarioId);
+    
+        usuarioRepository.deletarUsuarioPorIdNativo(usuarioId);
+
     }
 }
