@@ -26,10 +26,20 @@ public class SecurityConfigurations {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(req -> {
+                    // Suas rotas existentes (preservadas 100%)
                     req.requestMatchers(HttpMethod.POST, "/auth/login").permitAll();
                     req.requestMatchers(HttpMethod.POST, "/auth/register").permitAll();
                     req.requestMatchers(HttpMethod.POST, "/auth/forgot-password").permitAll();
                     req.requestMatchers(HttpMethod.POST, "/auth/reset-password").permitAll();
+
+                    req.requestMatchers(
+                            "/v3/api-docs/**",
+                            "/swagger-ui/**",
+                            "/swagger-ui.html",
+                            "/swagger-resources/**",
+                            "/webjars/**"
+                    ).permitAll();
+
                     req.anyRequest().authenticated();
                 })
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
