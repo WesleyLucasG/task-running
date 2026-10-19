@@ -54,18 +54,15 @@ public class AuthService {
         usuario.setPeso(dto.peso());
         usuario.setAtivo(true);
 
-        // 1. Salvar o usuário no repositório
         Usuario usuarioSalvo = usuarioRepository.save(usuario);
 
-        // 2. Cálculo defensivo para a meta diária de água (evita NullPointerException)
-        int metaDiaria = 2000; // Valor padrão de fallback
+        int metaDiaria = 2000;
         if (usuarioSalvo != null && usuarioSalvo.getMetaAguaMl() != null) {
             metaDiaria = usuarioSalvo.getMetaAguaMl().intValue();
         } else if (dto.peso() != null) {
-            metaDiaria = (int) Math.round(dto.peso() * 35.0); // 35ml por kg
+            metaDiaria = (int) Math.round(dto.peso() * 35.0);
         }
 
-        // 3. Criar e vincular a configuração de hidratação
         ConfiguracaoHidratacao configuracao = new ConfiguracaoHidratacao();
         configuracao.setUsuario(usuarioSalvo != null ? usuarioSalvo : usuario);
         configuracao.setMetaDiariaMl(metaDiaria);

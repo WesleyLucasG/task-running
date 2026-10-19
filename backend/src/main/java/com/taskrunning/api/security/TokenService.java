@@ -23,7 +23,7 @@ public class TokenService {
             Algorithm algorithm = Algorithm.HMAC256(secret);
             return JWT.create()
                     .withIssuer("task-running-api")
-                    .withSubject(usuario.getCpf()) // Define o CPF como Subject do Token
+                    .withSubject(usuario.getCpf())
                     .withExpiresAt(gerarDataExpiracao())
                     .sign(algorithm);
         } catch (JWTCreationException exception) {
