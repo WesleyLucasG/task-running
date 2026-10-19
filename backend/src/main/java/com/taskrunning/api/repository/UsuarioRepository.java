@@ -12,6 +12,12 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByEmail(String email);
     boolean existsByEmail(String email);
     boolean existsByCpf(String cpf);
+    Optional<Usuario> findByEmailAndAtivoTrue(String email);
+
+    boolean existsByCpfAndAtivoTrue(String cpf);
+
+    Optional<Usuario> findByCpfAndAtivoTrue(String cpf);
+
     @Modifying
     @Query(value = "DELETE FROM pontos_gps WHERE atividade_id IN (SELECT id FROM atividades WHERE usuario_id = :id)", nativeQuery = true)
         void deletarPontosGpsPorUsuarioId(@Param("id") Long id);

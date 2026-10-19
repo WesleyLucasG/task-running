@@ -52,7 +52,6 @@ class AuthServiceTest {
 
     @BeforeEach
     void setup() {
-        // Instanciação direta dos DTOs sem criar mocks desnecessários
         cadastroDTO = new CadastroUsuarioDTO(
                 "Kilo",
                 "runner@taskrunning.com",
@@ -70,27 +69,13 @@ class AuthServiceTest {
         usuario.setId(1L);
         usuario.setEmail("runner@taskrunning.com");
         usuario.setSenha("senhaCriptografada");
+        usuario.setAtivo(true);
     }
 
     @Test
-    @DisplayName("Deve lancar BusinessRuleException quando e-mail ja estiver cadastrado")
-    void deveLancarExcecaoQuandoEmailJaCadastrado() {
-        when(usuarioRepository.existsByEmail(cadastroDTO.email())).thenReturn(true);
-
-        BusinessRuleException exception = assertThrows(BusinessRuleException.class, () -> {
-            authService.cadastrar(cadastroDTO);
-        });
-
-        assertEquals("Email já cadastrado no sistema.", exception.getMessage());
-        verify(usuarioRepository, never()).save(any());
-        verify(configuracaoHidratacaoRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("Deve lancar BusinessRuleException quando CPF ja estiver cadastrado")
+    @DisplayName("Deve lancar BusinessRuleException quando CPF ja estiver cadastrado entre usuarios ativos")
     void deveLancarExcecaoQuandoCpfJaCadastrado() {
-        when(usuarioRepository.existsByEmail(cadastroDTO.email())).thenReturn(false);
-        when(usuarioRepository.existsByCpf(cadastroDTO.cpf())).thenReturn(true);
+        when(usuarioRepository.existsByCpfAndAtivoTrue(cadastroDTO.cpf())).thenReturn(true);
 
         BusinessRuleException exception = assertThrows(BusinessRuleException.class, () -> {
             authService.cadastrar(cadastroDTO);
@@ -102,11 +87,12 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("Deve cadastrar usuario e criar configuracao de hidratacao com sucesso")
+    @DisplayName("Deve cadastrar usuario com e-mail preenchido e criar configuracao de hidratacao com sucesso")
     void deveCadastrarUsuarioComSucesso() {
-        when(usuarioRepository.existsByEmail(cadastroDTO.email())).thenReturn(false);
-        when(usuarioRepository.existsByCpf(cadastroDTO.cpf())).thenReturn(false);
+        when(usuarioRepository.existsByCpfAndAtivoTrue(cadastroDTO.cpf())).thenReturn(false);
         when(passwordEncoder.encode("senha123")).thenReturn("senhaCriptografada");
+        // CORREÇÃO: Stub do save para retornar o objeto usuario passado no repositório
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertDoesNotThrow(() -> authService.cadastrar(cadastroDTO));
 
@@ -115,16 +101,39 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("Deve autenticar usuario e retornar token JWT com sucesso")
+    @DisplayName("Deve cadastrar usuario sem e-mail (opcional) com sucesso")
+    void deveCadastrarUsuarioSemEmailComSucesso() {
+        CadastroUsuarioDTO dtoSemEmail = new CadastroUsuarioDTO(
+                "Kilo",
+                null,
+                "senha123",
+                "12345678900",
+                70.00
+        );
+
+        when(usuarioRepository.existsByCpfAndAtivoTrue(dtoSemEmail.cpf())).thenReturn(false);
+        when(passwordEncoder.encode("senha123")).thenReturn("senhaCriptografada");
+        // CORREÇÃO: Stub do save para retornar o objeto usuario passado no repositório
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertDoesNotThrow(() -> authService.cadastrar(dtoSemEmail));
+
+        verify(usuarioRepository, times(1)).save(any(Usuario.class));
+        verify(configuracaoHidratacaoRepository, times(1)).save(any(ConfiguracaoHidratacao.class));
+    }
+
+    @Test
+    @DisplayName("Deve autenticar usuario ativo e retornar token JWT com sucesso")
     void deveAutenticarEGerarTokenComSucesso() {
-        when(usuarioRepository.findByEmail(loginDTO.email())).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByEmailAndAtivoTrue(loginDTO.email())).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches(loginDTO.senha(), usuario.getSenha())).thenReturn(true);
         when(tokenService.gerarToken(usuario)).thenReturn("tokenJwtFake123");
 
         TokenResponseDTO response = authService.login(loginDTO);
 
         assertNotNull(response);
-        assertEquals("Bearer", response.token());
-        assertEquals("tokenJwtFake123", response.tipo());
+        // CORREÇÃO: Ajuste na ordem dos campos do DTO
+        assertEquals("tokenJwtFake123", response.token());
+        assertEquals("Bearer", response.tipo());
     }
 }

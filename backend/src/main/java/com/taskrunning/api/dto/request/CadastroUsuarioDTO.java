@@ -6,7 +6,6 @@ public record CadastroUsuarioDTO(
         @NotBlank(message = "O nome é obrigatório.")
         String nome,
 
-        @NotBlank(message = "O email é obrigatório.")
         @Email(message = "E-mail em formato inválido.")
         String email,
 

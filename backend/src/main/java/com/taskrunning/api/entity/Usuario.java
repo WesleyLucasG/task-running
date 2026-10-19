@@ -25,7 +25,7 @@ public class Usuario implements UserDetails {
     @Column(nullable = false)
     private String nome;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String email;
 
     @Column(nullable = false)
@@ -33,6 +33,9 @@ public class Usuario implements UserDetails {
 
     @Column(nullable = false, unique = true)
     private String cpf;
+
+    @Column(nullable = false)
+    private Boolean ativo = true;
 
     @Column(nullable = false)
     private Double peso;

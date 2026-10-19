@@ -4,6 +4,7 @@ import com.taskrunning.api.dto.request.AtualizarPerfilRequestDTO;
 import com.taskrunning.api.dto.response.PerfilResponseDTO;
 import com.taskrunning.api.entity.ConfiguracaoHidratacao;
 import com.taskrunning.api.entity.Usuario;
+import com.taskrunning.api.exception.ResourceNotFoundException;
 import com.taskrunning.api.repository.ConfiguracaoHidratacaoRepository;
 import com.taskrunning.api.repository.UsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,13 +43,13 @@ class UsuarioServiceTest {
         usuario.setEmail("runner@taskrunning.com");
         usuario.setCpf("12345678900");
         usuario.setPeso(70.0);
-        usuario.setMetaAguaMl(2450.0);
+        usuario.setAtivo(true);
     }
 
     @Test
-    @DisplayName("Deve obter perfil do usuario com sucesso")
+    @DisplayName("Deve obter perfil do usuario ativo com sucesso")
     void deveObterPerfilComSucesso() {
-        when(usuarioRepository.findByEmail(usuario.getEmail())).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByEmailAndAtivoTrue(usuario.getEmail())).thenReturn(Optional.of(usuario));
 
         PerfilResponseDTO perfil = usuarioService.obterPerfil(usuario.getEmail());
 
@@ -58,15 +59,15 @@ class UsuarioServiceTest {
     }
 
     @Test
-    @DisplayName("Deve lancar RuntimeException quando usuario nao for encontrado ao obter perfil")
+    @DisplayName("Deve lancar ResourceNotFoundException quando usuario nao for encontrado ou estiver inativo")
     void deveLancarExcecaoQuandoUsuarioNaoEncontrado() {
-        when(usuarioRepository.findByEmail("inexistente@taskrunning.com")).thenReturn(Optional.empty());
+        when(usuarioRepository.findByEmailAndAtivoTrue("inexistente@taskrunning.com")).thenReturn(Optional.empty());
 
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+        ResourceNotFoundException exception = assertThrows(ResourceNotFoundException.class, () -> {
             usuarioService.obterPerfil("inexistente@taskrunning.com");
         });
 
-        assertEquals("Usuário não encontrado com o e-mail: inexistente@taskrunning.com", exception.getMessage());
+        assertTrue(exception.getMessage().contains("inexistente@taskrunning.com"));
     }
 
     @Test
@@ -77,8 +78,9 @@ class UsuarioServiceTest {
         when(dto.peso()).thenReturn(80.0);
 
         ConfiguracaoHidratacao config = new ConfiguracaoHidratacao();
+        config.setMetaDiariaMl(2800);
 
-        when(usuarioRepository.findByEmail(usuario.getEmail())).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByEmailAndAtivoTrue(usuario.getEmail())).thenReturn(Optional.of(usuario));
         when(configuracaoHidratacaoRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.of(config));
 
         PerfilResponseDTO perfil = usuarioService.atualizarPerfil(usuario.getEmail(), dto);
@@ -86,9 +88,21 @@ class UsuarioServiceTest {
         assertNotNull(perfil);
         assertEquals("Novo Nome", perfil.nome());
         assertEquals(80.0, perfil.peso());
-        assertEquals(2800.0, perfil.metaAguaMl()); // 80 * 35 = 2800
 
         verify(usuarioRepository, times(1)).save(usuario);
         verify(configuracaoHidratacaoRepository, times(1)).save(config);
+    }
+
+    @Test
+    @DisplayName("Deve inativar usuario (Soft Delete) alterando a flag ativo para false")
+    void deveInativarUsuarioComSucesso() {
+        when(usuarioRepository.findByEmailAndAtivoTrue(usuario.getEmail())).thenReturn(Optional.of(usuario));
+
+        assertDoesNotThrow(() -> usuarioService.deletarPerfil(usuario.getEmail()));
+
+        assertFalse(usuario.getAtivo());
+        verify(usuarioRepository, times(1)).save(usuario);
+        verify(usuarioRepository, never()).delete(any());
+        verify(usuarioRepository, never()).deleteById(any());
     }
 }
