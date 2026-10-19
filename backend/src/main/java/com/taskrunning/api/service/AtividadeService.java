@@ -27,14 +27,15 @@ public class AtividadeService {
     private final AtividadeRepository atividadeRepository;
     private final PontoGpsRepository pontoGpsRepository;
     private final UsuarioRepository usuarioRepository;
-    private final GamificacaoService gamificacaoService; // 1. Dependência injetada
+    private final GamificacaoService gamificacaoService;
 
     @Transactional
-    public AtividadeResponseDTO sincronizarAtividade(String email, SincronizarAtividadeRequestDTO dto) {
-        Usuario usuario = usuarioRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para o e-mail: " + email));
+    public AtividadeResponseDTO sincronizarAtividade(String cpf, SincronizarAtividadeRequestDTO dto) {
+        Usuario usuario = usuarioRepository.findByCpfAndAtivoTrue(cpf)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para o CPF: " + cpf));
 
-        var atividadeExistente = atividadeRepository.findByIdentificadorLocalAndUsuarioId(dto.identificadorLocal(), usuario.getId());
+        // Evita erro 500 no MySQL de entrada duplicada caso o identificador já exista
+        var atividadeExistente = atividadeRepository.findByIdentificadorLocal(dto.identificadorLocal());
         if (atividadeExistente.isPresent()) {
             return mapearParaDTO(atividadeExistente.get());
         }
@@ -83,16 +84,15 @@ public class AtividadeService {
         pontoGpsRepository.saveAll(pontosGpsList);
         atividadeSalva.setPontosGps(pontosGpsList);
 
-        // 2. Credita a recompensa ANTES de retornar a resposta
         gamificacaoService.creditarRecompensaAtividade(usuario, atividadeSalva.getCalorias(), atividadeSalva.getDistanciaMetros());
 
         return mapearParaDTO(atividadeSalva);
     }
 
     @Transactional(readOnly = true)
-    public AtividadeResponseDTO obterPorId(Long id, String email) {
-        Usuario usuario = usuarioRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado."));
+    public AtividadeResponseDTO obterPorId(Long id, String cpf) {
+        Usuario usuario = usuarioRepository.findByCpfAndAtivoTrue(cpf)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para o CPF: " + cpf));
 
         Atividade atividade = atividadeRepository.findByIdAndUsuarioId(id, usuario.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Atividade não encontrada ou não pertence ao usuário."));

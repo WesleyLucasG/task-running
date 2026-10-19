@@ -15,5 +15,7 @@ public interface AtividadeRepository extends JpaRepository<Atividade, Long> {
 
     Optional<Atividade> findByIdAndUsuarioId(Long id, Long usuarioId);
 
+    Optional<Atividade> findByIdentificadorLocal(String identificadorLocal);
+
     Optional<Atividade> findByIdentificadorLocalAndUsuarioId(String identificadorLocal, Long usuarioId);
 }

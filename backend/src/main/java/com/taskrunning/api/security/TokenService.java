@@ -15,36 +15,36 @@ import java.time.ZoneOffset;
 @Service
 public class TokenService {
 
-    @Value("${api.security.token.secret")
+    @Value("${api.security.token.secret:minha-chave-secreta-super-segura}")
     private String secret;
 
     public String gerarToken(Usuario usuario) {
         try {
-            Algorithm algoritmo = Algorithm.HMAC256(secret);
+            Algorithm algorithm = Algorithm.HMAC256(secret);
             return JWT.create()
                     .withIssuer("task-running-api")
-                    .withSubject(usuario.getEmail())
+                    .withSubject(usuario.getCpf()) // Define o CPF como Subject do Token
                     .withExpiresAt(gerarDataExpiracao())
-                    .sign(algoritmo);
+                    .sign(algorithm);
         } catch (JWTCreationException exception) {
-            throw new RuntimeException("Erro ao gerar token de acesso", exception);
+            throw new RuntimeException("Erro ao gerar token JWT", exception);
         }
     }
 
-    public String validarToken(String token) {
+    public String getSubject(String token) {
         try {
-            Algorithm algoritmo = Algorithm.HMAC256(secret);
-            return JWT.require(algoritmo)
+            Algorithm algorithm = Algorithm.HMAC256(secret);
+            return JWT.require(algorithm)
                     .withIssuer("task-running-api")
                     .build()
                     .verify(token)
-                    .getSubject();
+                    .getSubject(); // Extrai e retorna o CPF
         } catch (JWTVerificationException exception) {
-            return "";
+            return null;
         }
     }
 
     private Instant gerarDataExpiracao() {
-        return LocalDateTime.now().plusHours(24).toInstant(ZoneOffset.of("-03:00"));
+        return LocalDateTime.now().plusHours(2).toInstant(ZoneOffset.of("-03:00"));
     }
 }

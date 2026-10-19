@@ -19,8 +19,8 @@ public class UsuarioService {
     @Autowired
     private ConfiguracaoHidratacaoRepository configuracaoHidratacaoRepository;
 
-    public PerfilResponseDTO obterPerfil(String email) {
-        Usuario usuario = buscarPorEmail(email);
+    public PerfilResponseDTO obterPerfil(String cpf) {
+        Usuario usuario = buscarPorCpf(cpf);
         ConfiguracaoHidratacao config = configuracaoHidratacaoRepository.findByUsuarioId(usuario.getId())
                 .orElse(null);
 
@@ -41,8 +41,8 @@ public class UsuarioService {
         );
     }
 
-    public PerfilResponseDTO atualizarPerfil(String email, AtualizarPerfilRequestDTO dto) {
-        Usuario usuario = buscarPorEmail(email);
+    public PerfilResponseDTO atualizarPerfil(String cpf, AtualizarPerfilRequestDTO dto) {
+        Usuario usuario = buscarPorCpf(cpf);
 
         if (dto.nome() != null) usuario.setNome(dto.nome());
         if (dto.peso() != null) usuario.setPeso(dto.peso());
@@ -78,16 +78,12 @@ public class UsuarioService {
         );
     }
 
-    public void deletarPerfil(String email) {
-        Usuario usuario = buscarPorEmail(email);
+    public void deletarPerfil(String cpf) {
+        Usuario usuario = buscarPorCpf(cpf);
         usuario.setAtivo(false);
         usuarioRepository.save(usuario);
     }
 
-    private Usuario buscarPorEmail(String email) {
-        return usuarioRepository.findByEmailAndAtivoTrue(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado com o e-mail: " + email));
-    }
     private Usuario buscarPorCpf(String cpf) {
         return usuarioRepository.findByCpfAndAtivoTrue(cpf)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para o CPF: " + cpf));

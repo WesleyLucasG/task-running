@@ -66,9 +66,6 @@ public class Usuario implements UserDetails {
     public String getPassword() { return this.senha; }
 
     @Override
-    public String getUsername() { return this.email; }
-
-    @Override
     public boolean isAccountNonExpired() { return true; }
 
     @Override
@@ -79,4 +76,8 @@ public class Usuario implements UserDetails {
 
     @Override
     public boolean isEnabled() { return true; }
+    @Override
+    public String getUsername() {
+        return this.email; // Garante que o identificador principal da sessao seja o CPF
+    }
 }
