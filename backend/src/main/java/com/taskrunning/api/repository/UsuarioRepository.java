@@ -10,11 +10,9 @@ import java.util.Optional;
 
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
-    // Busca de login exclusiva por CPF (Retorna no máximo 1 registro ativo)
     Optional<Usuario> findByCpfAndAtivoTrue(String cpf);
         Optional<Usuario> findByEmailAndAtivoTrue(String email);
 
-    // --- Outros métodos de verificação e busca ---
     boolean existsByCpfAndAtivoTrue(String cpf);
     boolean existsByCpf(String cpf);
     boolean existsByEmail(String email);
@@ -22,7 +20,6 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByEmail(String email);
     Optional<Usuario> findFirstByEmailAndAtivoTrue(String email);
 
-    // --- Métodos de exclusão em cascata (mantidos) ---
     @Modifying
     @Query(value = "DELETE FROM pontos_gps WHERE atividade_id IN (SELECT id FROM atividades WHERE usuario_id = :id)", nativeQuery = true)
     void deletarPontosGpsPorUsuarioId(@Param("id") Long id);

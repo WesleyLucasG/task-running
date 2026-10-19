@@ -78,6 +78,6 @@ public class Usuario implements UserDetails {
     public boolean isEnabled() { return true; }
     @Override
     public String getUsername() {
-        return this.email; // Garante que o identificador principal da sessao seja o CPF
+        return this.email;
     }
 }

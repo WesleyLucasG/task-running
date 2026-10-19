@@ -29,9 +29,7 @@ public class SecurityFilter extends OncePerRequestFilter {
         var token = recuperarToken(request);
 
         if (token != null) {
-            var cpf = tokenService.getSubject(token); // Agora retorna o CPF
-
-            // MUDANÇA AQUI: Buscar por CPF ativo em vez de e-mail
+            var cpf = tokenService.getSubject(token);
             var usuarioOpt = usuarioRepository.findByCpfAndAtivoTrue(cpf);
 
             if (usuarioOpt.isPresent()) {
