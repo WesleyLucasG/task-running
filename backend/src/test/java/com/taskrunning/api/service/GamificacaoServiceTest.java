@@ -48,6 +48,7 @@ class GamificacaoServiceTest {
     void setup() {
         usuario = new Usuario();
         usuario.setId(1L);
+        usuario.setCpf("12345678900");
         usuario.setEmail("runner@taskrunning.com");
 
         carteira = new Carteira();

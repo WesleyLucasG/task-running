@@ -60,13 +60,15 @@ class AuthServiceTest {
                 70.00
         );
 
+        // Atualizado para receber CPF no primeiro parametro
         loginDTO = new LoginDTO(
-                "runner@taskrunning.com",
+                "12345678900",
                 "senha123"
         );
 
         usuario = new Usuario();
         usuario.setId(1L);
+        usuario.setCpf("12345678900");
         usuario.setEmail("runner@taskrunning.com");
         usuario.setSenha("senhaCriptografada");
         usuario.setAtivo(true);
@@ -91,7 +93,6 @@ class AuthServiceTest {
     void deveCadastrarUsuarioComSucesso() {
         when(usuarioRepository.existsByCpfAndAtivoTrue(cadastroDTO.cpf())).thenReturn(false);
         when(passwordEncoder.encode("senha123")).thenReturn("senhaCriptografada");
-        // CORREÇÃO: Stub do save para retornar o objeto usuario passado no repositório
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertDoesNotThrow(() -> authService.cadastrar(cadastroDTO));
@@ -113,7 +114,6 @@ class AuthServiceTest {
 
         when(usuarioRepository.existsByCpfAndAtivoTrue(dtoSemEmail.cpf())).thenReturn(false);
         when(passwordEncoder.encode("senha123")).thenReturn("senhaCriptografada");
-        // CORREÇÃO: Stub do save para retornar o objeto usuario passado no repositório
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         assertDoesNotThrow(() -> authService.cadastrar(dtoSemEmail));
@@ -123,16 +123,16 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("Deve autenticar usuario ativo e retornar token JWT com sucesso")
+    @DisplayName("Deve autenticar usuario ativo via CPF e retornar token JWT com sucesso")
     void deveAutenticarEGerarTokenComSucesso() {
-        when(usuarioRepository.findByEmailAndAtivoTrue(loginDTO.email())).thenReturn(Optional.of(usuario));
+        // Atualizado para buscar por CPF e ativo = true
+        when(usuarioRepository.findByCpfAndAtivoTrue(loginDTO.cpf())).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches(loginDTO.senha(), usuario.getSenha())).thenReturn(true);
         when(tokenService.gerarToken(usuario)).thenReturn("tokenJwtFake123");
 
         TokenResponseDTO response = authService.login(loginDTO);
 
         assertNotNull(response);
-        // CORREÇÃO: Ajuste na ordem dos campos do DTO
         assertEquals("tokenJwtFake123", response.token());
         assertEquals("Bearer", response.tipo());
     }

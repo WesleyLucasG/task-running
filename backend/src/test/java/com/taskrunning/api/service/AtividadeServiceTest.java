@@ -54,6 +54,7 @@ class AtividadeServiceTest {
     void setup() {
         usuario = new Usuario();
         usuario.setId(1L);
+        usuario.setCpf("12345678900");
         usuario.setEmail("runner@taskrunning.com");
         usuario.setPeso(70.0);
 
@@ -67,7 +68,7 @@ class AtividadeServiceTest {
                 TipoAtividade.CORRIDA,
                 LocalDateTime.now().minusMinutes(30),
                 LocalDateTime.now(),
-                1800l,
+                1800L,
                 List.of(ponto1, ponto2)
         );
     }
@@ -81,16 +82,16 @@ class AtividadeServiceTest {
         atividadeExistente.setIdentificadorLocal(identificadorLocalUuid);
         atividadeExistente.setTipoAtividade(TipoAtividade.CORRIDA);
         atividadeExistente.setStatus(StatusAtividade.CONCLUIDA);
-        atividadeExistente.setDuracaoSegundos(1800l);
+        atividadeExistente.setDuracaoSegundos(1800L);
         atividadeExistente.setDistanciaMetros(1000.0);
         atividadeExistente.setCalorias(300);
         atividadeExistente.setPaceMedio(5.0);
 
-        when(usuarioRepository.findByEmail(usuario.getEmail())).thenReturn(Optional.of(usuario));
-        when(atividadeRepository.findByIdentificadorLocalAndUsuarioId(identificadorLocalUuid, usuario.getId()))
+        when(usuarioRepository.findByCpfAndAtivoTrue(usuario.getCpf())).thenReturn(Optional.of(usuario));
+        when(atividadeRepository.findByIdentificadorLocal(identificadorLocalUuid))
                 .thenReturn(Optional.of(atividadeExistente));
 
-        AtividadeResponseDTO resultado = atividadeService.sincronizarAtividade(usuario.getEmail(), dto);
+        AtividadeResponseDTO resultado = atividadeService.sincronizarAtividade(usuario.getCpf(), dto);
 
         assertNotNull(resultado);
         assertEquals(identificadorLocalUuid, resultado.identificadorLocal());
@@ -100,15 +101,15 @@ class AtividadeServiceTest {
     }
 
     @Test
-    @DisplayName("Deve lancar ResourceNotFoundException quando o usuario nao for encontrado")
+    @DisplayName("Deve lancar ResourceNotFoundException quando o CPF do usuario nao for encontrado")
     void deveLancarExcecaoQuandoUsuarioNaoExiste() {
-        when(usuarioRepository.findByEmail("inexistente@taskrunning.com")).thenReturn(Optional.empty());
+        when(usuarioRepository.findByCpfAndAtivoTrue("00000000000")).thenReturn(Optional.empty());
 
         ResourceNotFoundException exception = assertThrows(ResourceNotFoundException.class, () -> {
-            atividadeService.sincronizarAtividade("inexistente@taskrunning.com", dto);
+            atividadeService.sincronizarAtividade("00000000000", dto);
         });
 
-        assertEquals("Usuário não encontrado para o e-mail: inexistente@taskrunning.com", exception.getMessage());
+        assertEquals("Usuário não encontrado para o CPF: 00000000000", exception.getMessage());
         verify(atividadeRepository, never()).save(any());
     }
 
@@ -124,12 +125,12 @@ class AtividadeServiceTest {
         atividadeSalva.setCalorias(350);
         atividadeSalva.setDistanciaMetros(1000.0);
 
-        when(usuarioRepository.findByEmail(usuario.getEmail())).thenReturn(Optional.of(usuario));
-        when(atividadeRepository.findByIdentificadorLocalAndUsuarioId(identificadorLocalUuid, usuario.getId()))
+        when(usuarioRepository.findByCpfAndAtivoTrue(usuario.getCpf())).thenReturn(Optional.of(usuario));
+        when(atividadeRepository.findByIdentificadorLocal(identificadorLocalUuid))
                 .thenReturn(Optional.empty());
         when(atividadeRepository.save(any(Atividade.class))).thenReturn(atividadeSalva);
 
-        AtividadeResponseDTO resultado = atividadeService.sincronizarAtividade(usuario.getEmail(), dto);
+        AtividadeResponseDTO resultado = atividadeService.sincronizarAtividade(usuario.getCpf(), dto);
 
         assertNotNull(resultado);
         verify(atividadeRepository, times(1)).save(any(Atividade.class));
