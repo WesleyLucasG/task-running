@@ -88,4 +88,8 @@ public class UsuarioService {
         return usuarioRepository.findByEmailAndAtivoTrue(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado com o e-mail: " + email));
     }
+    private Usuario buscarPorCpf(String cpf) {
+        return usuarioRepository.findByCpfAndAtivoTrue(cpf)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para o CPF: " + cpf));
+    }
 }

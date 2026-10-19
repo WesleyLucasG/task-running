@@ -75,8 +75,8 @@ public class AuthService {
     }
 
     public TokenResponseDTO login(LoginDTO dto) {
-        Usuario usuario = usuarioRepository.findByEmailAndAtivoTrue(dto.email())
-                .orElseThrow(() -> new BusinessRuleException("Usuário não encontrado ou conta inativa."));
+        Usuario usuario = usuarioRepository.findByCpfAndAtivoTrue(dto.cpf())
+                .orElseThrow(() -> new BusinessRuleException("CPF não encontrado ou conta inativa."));
 
         if (!passwordEncoder.matches(dto.senha(), usuario.getSenha())) {
             throw new BusinessRuleException("Senha inválida.");
