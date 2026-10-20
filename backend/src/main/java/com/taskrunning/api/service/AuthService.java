@@ -91,6 +91,9 @@ public class AuthService {
             Usuario usuario = usuarioOpt.get();
             String token = UUID.randomUUID().toString();
 
+            // A tabela possui um único token por usuário; uma nova solicitação invalida o anterior.
+            passwordResetTokenRepository.deleteByUsuario(usuario);
+
             PasswordResetToken resetToken = new PasswordResetToken();
             resetToken.setToken(token);
             resetToken.setUsuario(usuario);

@@ -1,9 +1,11 @@
 package com.taskrunning.api.service;
 
 import com.taskrunning.api.dto.request.CadastroUsuarioDTO;
+import com.taskrunning.api.dto.request.ForgotPasswordDTO;
 import com.taskrunning.api.dto.request.LoginDTO;
 import com.taskrunning.api.dto.response.TokenResponseDTO;
 import com.taskrunning.api.entity.ConfiguracaoHidratacao;
+import com.taskrunning.api.entity.PasswordResetToken;
 import com.taskrunning.api.entity.Usuario;
 import com.taskrunning.api.exception.BusinessRuleException;
 import com.taskrunning.api.repository.ConfiguracaoHidratacaoRepository;
@@ -135,5 +137,17 @@ class AuthServiceTest {
         assertNotNull(response);
         assertEquals("tokenJwtFake123", response.token());
         assertEquals("Bearer", response.tipo());
+    }
+
+    @Test
+    @DisplayName("Deve substituir o token anterior ao solicitar nova recuperação de senha")
+    void deveSubstituirTokenAnteriorNaRecuperacaoDeSenha() {
+        ForgotPasswordDTO dto = new ForgotPasswordDTO("runner@taskrunning.com");
+        when(usuarioRepository.findByEmail(dto.email())).thenReturn(Optional.of(usuario));
+
+        authService.recuperarSenha(dto);
+
+        verify(passwordResetTokenRepository).deleteByUsuario(usuario);
+        verify(passwordResetTokenRepository).save(any(PasswordResetToken.class));
     }
 }
