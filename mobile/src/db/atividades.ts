@@ -2,6 +2,7 @@ import * as Crypto from 'expo-crypto';
 import type { Ponto } from '../domain/geo';
 import { getDb } from '.';
 
+
 export type TipoAtividade = 'CORRIDA' | 'CAMINHADA';
 export type StatusAtividade = 'EM_ANDAMENTO' | 'CONCLUIDA' | 'CANCELADA';
 

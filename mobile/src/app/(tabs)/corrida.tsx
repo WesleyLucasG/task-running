@@ -10,11 +10,11 @@ import { Estatistica } from '../../components/Estatistica';
 import { MapaOSM } from '../../components/MapaOSM';
 import {
   cancelarAtividade,
-  finalizarAtividade,
   iniciarAtividade,
   salvarPonto,
   TipoAtividade,
 } from '../../db/atividades';
+import { concluirAtividadeComRecompensa } from '../../db/jogo';
 import {
   calcularPace,
   coordenadaValida,
@@ -158,7 +158,7 @@ export default function Corrida() {
     }
   }
 
-  async function finalizar() {
+    async function finalizar() {
     const id = atividadeId.current;
     if (!id || !usuario) return;
     setSalvando(true);
@@ -167,7 +167,7 @@ export default function Corrida() {
       const fim = Date.now();
       const duracao = Math.round((fim - inicioMs.current) / 1000); // RN06
       const dist = distMetros.current;
-      await finalizarAtividade(id, {
+      await concluirAtividadeComRecompensa(id, usuario.id, {
         dataFim: new Date(fim),
         duracaoSegundos: duracao,
         distanciaMetros: dist,

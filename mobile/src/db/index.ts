@@ -36,6 +36,35 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
         );
 
         CREATE INDEX IF NOT EXISTS idx_pontos_atividade ON pontos_gps(atividade_id);
+
+        CREATE TABLE IF NOT EXISTS avatares (
+          usuario_id TEXT PRIMARY KEY NOT NULL,
+          nivel INTEGER NOT NULL DEFAULT 1,
+          experiencia INTEGER NOT NULL DEFAULT 0,
+          forca_base INTEGER NOT NULL DEFAULT 10,
+          agilidade INTEGER NOT NULL DEFAULT 0,
+          vida_atual INTEGER NOT NULL DEFAULT 100,
+          vida_maxima INTEGER NOT NULL DEFAULT 100,
+          genero TEXT NOT NULL DEFAULT 'MASCULINO',
+          cabelo TEXT NOT NULL DEFAULT 'CURTO',
+          cor_pele TEXT NOT NULL DEFAULT '#F1C27D',
+          cor_roupa TEXT NOT NULL DEFAULT '#F97316'
+        );
+
+        CREATE TABLE IF NOT EXISTS carteiras (
+          usuario_id TEXT PRIMARY KEY NOT NULL,
+          saldo_moedas INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS recompensas_atividade (
+          atividade_id TEXT PRIMARY KEY NOT NULL,
+          xp INTEGER NOT NULL,
+          moedas INTEGER NOT NULL,
+          multiplicador REAL NOT NULL,
+          nivel_antes INTEGER NOT NULL,
+          nivel_depois INTEGER NOT NULL,
+          FOREIGN KEY (atividade_id) REFERENCES atividades(id) ON DELETE CASCADE
+        );
       `);
       return db;
     })();
