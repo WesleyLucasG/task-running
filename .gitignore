@@ -23,3 +23,8 @@
 hs_err_pid*
 replay_pid*
 .idea/
+
+mobile.rar
+node_modules/
+out/
+.expo/
