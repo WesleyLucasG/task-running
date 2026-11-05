@@ -1,6 +1,5 @@
 package com.taskrunning.api.security;
 
-import com.taskrunning.api.entity.Usuario;
 import com.taskrunning.api.repository.UsuarioRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -23,14 +22,6 @@ public class SecurityFilter extends OncePerRequestFilter {
     @Autowired
     private UsuarioRepository usuarioRepository;
 
-    private String recuperarToken(HttpServletRequest request){
-        var authHeader = request.getHeader("Authorization");
-        if(authHeader == null || !authHeader.startsWith("Bearer ")){
-            return null;
-        }
-        return authHeader.replace("Bearer ", "").trim();
-    }
-
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
@@ -38,22 +29,25 @@ public class SecurityFilter extends OncePerRequestFilter {
         var token = recuperarToken(request);
 
         if (token != null) {
-            var email = tokenService.validarToken(token);
+            var cpf = tokenService.getSubject(token);
+            var usuarioOpt = usuarioRepository.findByCpfAndAtivoTrue(cpf);
 
-            if (email != null && !email.isEmpty()) {
-                usuarioRepository.findByEmail(email).ifPresent(usuario -> {
-                    var authentication = new UsernamePasswordAuthenticationToken(
-                            usuario,
-                            null,
-                            usuario.getAuthorities()
-                    );
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-                });
+            if (usuarioOpt.isPresent()) {
+                var usuario = usuarioOpt.get();
+                var authentication = new UsernamePasswordAuthenticationToken(
+                        usuario, null, usuario.getAuthorities());
+                SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         }
 
         filterChain.doFilter(request, response);
     }
 
-
+    private String recuperarToken(HttpServletRequest request) {
+        var authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        return authHeader.replace("Bearer ", "").trim();
+    }
 }

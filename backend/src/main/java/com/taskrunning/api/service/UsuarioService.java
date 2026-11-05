@@ -2,64 +2,90 @@ package com.taskrunning.api.service;
 
 import com.taskrunning.api.dto.request.AtualizarPerfilRequestDTO;
 import com.taskrunning.api.dto.response.PerfilResponseDTO;
+import com.taskrunning.api.entity.ConfiguracaoHidratacao;
 import com.taskrunning.api.entity.Usuario;
+import com.taskrunning.api.exception.ResourceNotFoundException;
 import com.taskrunning.api.repository.ConfiguracaoHidratacaoRepository;
 import com.taskrunning.api.repository.UsuarioRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 public class UsuarioService {
 
-    private final UsuarioRepository usuarioRepository;
-    private final ConfiguracaoHidratacaoRepository configuracaoHidratacaoRepository;
+    @Autowired
+    private UsuarioRepository usuarioRepository;
 
-    @Transactional(readOnly = true)
-    public PerfilResponseDTO obterPerfil(String email) {
-        Usuario usuario = buscarPorEmail(email);
-        return mapearParaDTO(usuario);
-    }
+    @Autowired
+    private ConfiguracaoHidratacaoRepository configuracaoHidratacaoRepository;
 
-    @Transactional
-    public PerfilResponseDTO atualizarPerfil(String email, AtualizarPerfilRequestDTO dto) {
-        Usuario usuario = buscarPorEmail(email);
+    public PerfilResponseDTO obterPerfil(String cpf) {
+        Usuario usuario = buscarPorCpf(cpf);
+        ConfiguracaoHidratacao config = configuracaoHidratacaoRepository.findByUsuarioId(usuario.getId())
+                .orElse(null);
 
-        usuario.setNome(dto.nome());
-        usuario.setPeso(dto.peso());
+        Double metaAgua = (config != null && config.getMetaDiariaMl() != null)
+                ? config.getMetaDiariaMl().doubleValue()
+                : (usuario.getPeso() != null ? usuario.getPeso() * 35.0 : 2000.0);
 
-        if (dto.peso() != null && dto.peso() > 0) {
-            usuario.setMetaAguaMl(dto.peso() * 35.0);
-        }
+        String perfil = usuario.getPerfil() != null ? usuario.getPerfil().toString() : "USER";
 
-        usuarioRepository.save(usuario);
-
-        if (usuario.getMetaAguaMl() != null) {
-            configuracaoHidratacaoRepository.findByUsuarioId(usuario.getId())
-                    .ifPresent(config -> {
-                        config.setMetaDiariaMl(usuario.getMetaAguaMl().intValue());
-                        configuracaoHidratacaoRepository.save(config);
-                    });
-        }
-
-        return mapearParaDTO(usuario);
-    }
-
-    private Usuario buscarPorEmail(String email) {
-        return usuarioRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado com o e-mail: " + email));
-    }
-
-    private PerfilResponseDTO mapearParaDTO(Usuario usuario) {
         return new PerfilResponseDTO(
                 usuario.getId(),
                 usuario.getNome(),
                 usuario.getEmail(),
                 usuario.getCpf(),
                 usuario.getPeso(),
-                usuario.getMetaAguaMl(),
-                usuario.getPerfil() != null ? usuario.getPerfil().name() : "USER"
+                metaAgua,
+                perfil
         );
+    }
+
+    public PerfilResponseDTO atualizarPerfil(String cpf, AtualizarPerfilRequestDTO dto) {
+        Usuario usuario = buscarPorCpf(cpf);
+
+        if (dto.nome() != null) usuario.setNome(dto.nome());
+        if (dto.peso() != null) usuario.setPeso(dto.peso());
+
+        usuarioRepository.save(usuario);
+
+        ConfiguracaoHidratacao config = configuracaoHidratacaoRepository.findByUsuarioId(usuario.getId())
+                .orElseGet(() -> {
+                    ConfiguracaoHidratacao c = new ConfiguracaoHidratacao();
+                    c.setUsuario(usuario);
+                    return c;
+                });
+
+        if (dto.peso() != null) {
+            config.setMetaDiariaMl((int) Math.round(dto.peso() * 35.0));
+            configuracaoHidratacaoRepository.save(config);
+        }
+
+        Double metaAgua = (config.getMetaDiariaMl() != null)
+                ? config.getMetaDiariaMl().doubleValue()
+                : (usuario.getPeso() != null ? usuario.getPeso() * 35.0 : 2000.0);
+
+        String perfil = usuario.getPerfil() != null ? usuario.getPerfil().toString() : "USER";
+
+        return new PerfilResponseDTO(
+                usuario.getId(),
+                usuario.getNome(),
+                usuario.getEmail(),
+                usuario.getCpf(),
+                usuario.getPeso(),
+                metaAgua,
+                perfil
+        );
+    }
+
+    public void deletarPerfil(String cpf) {
+        Usuario usuario = buscarPorCpf(cpf);
+        usuario.setAtivo(false);
+        usuarioRepository.save(usuario);
+    }
+
+    private Usuario buscarPorCpf(String cpf) {
+        return usuarioRepository.findByCpfAndAtivoTrue(cpf)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para o CPF: " + cpf));
     }
 }

@@ -25,7 +25,7 @@ public class Usuario implements UserDetails {
     @Column(nullable = false)
     private String nome;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String email;
 
     @Column(nullable = false)
@@ -33,6 +33,9 @@ public class Usuario implements UserDetails {
 
     @Column(nullable = false, unique = true)
     private String cpf;
+
+    @Column(nullable = false)
+    private Boolean ativo = true;
 
     @Column(nullable = false)
     private Double peso;
@@ -63,9 +66,6 @@ public class Usuario implements UserDetails {
     public String getPassword() { return this.senha; }
 
     @Override
-    public String getUsername() { return this.email; }
-
-    @Override
     public boolean isAccountNonExpired() { return true; }
 
     @Override
@@ -76,4 +76,8 @@ public class Usuario implements UserDetails {
 
     @Override
     public boolean isEnabled() { return true; }
+    @Override
+    public String getUsername() {
+        return this.email;
+    }
 }

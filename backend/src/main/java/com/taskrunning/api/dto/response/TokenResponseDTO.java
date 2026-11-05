@@ -1,11 +1,10 @@
 package com.taskrunning.api.dto.response;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-
-@Data
-@AllArgsConstructor
-public class TokenResponseDTO {
-    private String token;
-    private String tipo;
+public record TokenResponseDTO(
+        String token,
+        String tipo
+) {
+    public TokenResponseDTO(String token) {
+        this(token, "Bearer");
+    }
 }

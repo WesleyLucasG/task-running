@@ -17,15 +17,10 @@ import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import com.taskrunning.api.entity.ConfiguracaoHidratacao;
-
-
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Function;
 
 @Service
 public class AuthService {
@@ -46,51 +41,58 @@ public class AuthService {
     private ConfiguracaoHidratacaoRepository configuracaoHidratacaoRepository;
 
     @Transactional
-    public void cadastrar(CadastroUsuarioDTO dto)  {
-        if(usuarioRepository.existsByEmail(dto.getEmail())){
-            throw new BusinessRuleException("Email já cadastrado no sistema.");
-        }
-        if(usuarioRepository.existsByCpf(dto.getCpf())){
+    public void cadastrar(CadastroUsuarioDTO dto) {
+        if (usuarioRepository.existsByCpfAndAtivoTrue(dto.cpf())) {
             throw new BusinessRuleException("CPF já cadastrado no sistema.");
         }
 
         Usuario usuario = new Usuario();
-        usuario.setNome(dto.getNome());
-        usuario.setEmail(dto.getEmail());
-        usuario.setCpf(dto.getCpf());
-        usuario.setPeso(dto.getPeso());
-        usuario.calcularMetaAgua();
-        usuario.setSenha(passwordEncoder.encode(dto.getSenha()));
-        usuarioRepository.save(usuario);
+        usuario.setNome(dto.nome());
+        usuario.setEmail(dto.email());
+        usuario.setCpf(dto.cpf());
+        usuario.setSenha(passwordEncoder.encode(dto.senha()));
+        usuario.setPeso(dto.peso());
+        usuario.setAtivo(true);
 
-        ConfiguracaoHidratacao  configuracao = new ConfiguracaoHidratacao();
-        configuracao.setUsuario(usuario);
-        configuracao.setMetaDiariaMl(usuario.getMetaAguaMl().intValue());
+        Usuario usuarioSalvo = usuarioRepository.save(usuario);
+
+        int metaDiaria = 2000;
+        if (usuarioSalvo != null && usuarioSalvo.getMetaAguaMl() != null) {
+            metaDiaria = usuarioSalvo.getMetaAguaMl().intValue();
+        } else if (dto.peso() != null) {
+            metaDiaria = (int) Math.round(dto.peso() * 35.0);
+        }
+
+        ConfiguracaoHidratacao configuracao = new ConfiguracaoHidratacao();
+        configuracao.setUsuario(usuarioSalvo != null ? usuarioSalvo : usuario);
+        configuracao.setMetaDiariaMl(metaDiaria);
         configuracao.setLembreteAtivo(true);
 
         configuracaoHidratacaoRepository.save(configuracao);
-
-        }
+    }
 
     public TokenResponseDTO login(LoginDTO dto) {
-        Usuario usuario = usuarioRepository.findByEmail(dto.getEmail())
-                .orElseThrow(() -> new BusinessRuleException("E-mail ou senha inválidos."));
+        Usuario usuario = usuarioRepository.findByCpfAndAtivoTrue(dto.cpf())
+                .orElseThrow(() -> new BusinessRuleException("CPF não encontrado ou conta inativa."));
 
-        if (!passwordEncoder.matches(dto.getSenha(), usuario.getSenha())) {
-            throw new BusinessRuleException("E-mail ou senha inválidos.");
+        if (!passwordEncoder.matches(dto.senha(), usuario.getSenha())) {
+            throw new BusinessRuleException("Senha inválida.");
         }
 
         String token = tokenService.gerarToken(usuario);
-        return new TokenResponseDTO("Bearer", token);
+        return new TokenResponseDTO(token, "Bearer");
     }
 
     @Transactional
     public String recuperarSenha(ForgotPasswordDTO dto) {
-        Optional<Usuario> usuarioOpt = usuarioRepository.findByEmail(dto.getEmail());
+        Optional<Usuario> usuarioOpt = usuarioRepository.findByEmail(dto.email());
 
         if (usuarioOpt.isPresent()) {
             Usuario usuario = usuarioOpt.get();
             String token = UUID.randomUUID().toString();
+
+            // A tabela possui um único token por usuário; uma nova solicitação invalida o anterior.
+            passwordResetTokenRepository.deleteByUsuario(usuario);
 
             PasswordResetToken resetToken = new PasswordResetToken();
             resetToken.setToken(token);
@@ -102,27 +104,24 @@ public class AuthService {
             return token;
         }
         return null;
-
     }
 
-    public void redefinirSenha(ResetPasswordDTO dto){
-        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(dto.getToken())
+    public void redefinirSenha(ResetPasswordDTO dto) {
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(dto.token())
                 .orElseThrow(() -> new BusinessRuleException("Token de recuperação inválido ou inexistente"));
-        if(resetToken.isUsado()){
+
+        if (resetToken.isUsado()) {
             throw new BusinessRuleException("Este token de recuperação já foi utilizado.");
         }
-        if(resetToken.isExpirado()){
+        if (resetToken.isExpirado()) {
             throw new BusinessRuleException("Este token de recuperação expirou. Solicite um novo.");
         }
 
         Usuario usuario = resetToken.getUsuario();
-        usuario.setSenha(passwordEncoder.encode(dto.getNovaSenha()));
+        usuario.setSenha(passwordEncoder.encode(dto.novaSenha()));
         usuarioRepository.save(usuario);
 
         resetToken.setUsado(true);
         passwordResetTokenRepository.save(resetToken);
     }
-
-
-
 }
