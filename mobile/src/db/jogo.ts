@@ -16,7 +16,7 @@ export type Avatar = {
   corRoupa: string;
 };
 
-type LinhaAvatar = {
+export type LinhaAvatar = {
   nivel: number;
   experiencia: number;
   forca_base: number;
@@ -29,7 +29,7 @@ type LinhaAvatar = {
   cor_roupa: string;
 };
 
-function mapear(l: LinhaAvatar): Avatar {
+export function mapear(l: LinhaAvatar): Avatar {
   return {
     nivel: l.nivel,
     experiencia: l.experiencia,
@@ -46,7 +46,7 @@ function mapear(l: LinhaAvatar): Avatar {
 
 // UC01: avatar (nível 1) e carteira (saldo zero) nascem junto com a conta.
 // Como o cadastro é local, criamos na primeira vez que o jogador é consultado.
-async function garantirJogador(usuarioId: string): Promise<void> {
+export async function garantirJogador(usuarioId: string): Promise<void> {
   const db = await getDb();
   await db.runAsync(`INSERT OR IGNORE INTO avatares (usuario_id) VALUES (?)`, [usuarioId]);
   await db.runAsync(`INSERT OR IGNORE INTO carteiras (usuario_id) VALUES (?)`, [usuarioId]);
