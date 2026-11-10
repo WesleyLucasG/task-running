@@ -1,56 +1,60 @@
-# Welcome to your Expo app 👋
+# Task Running — App Mobile (MVP)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicativo mobile do Task Running, que transforma corrida e caminhada em
+progressão de um RPG idle. Desenvolvido em React Native com Expo.
 
-## Get started
+## Como executar
 
-1. Install dependencies
+Pré-requisitos: Node.js e o app Expo Go instalado no celular.
 
-   ```bash
-   npm install
-   ```
+    cd mobile
+    npm install
+    npx expo start
 
-2. Start the app
+Escaneie o QR code com o Expo Go (celular e computador na mesma rede).
 
-   ```bash
-   npx expo start
-   ```
+## Funcionalidades
 
-In the output, you'll find options to open the app in a
+- Cadastro com validação de CPF, login e bloqueio após 5 tentativas (RNF13)
+- Recuperação de senha com código de uso único e validade de 15 minutos
+- Editar perfil, com recálculo automático da meta de água (RN09)
+- Corrida e caminhada com GPS, mapa OpenStreetMap, modo offline e
+  tolerância a perda de sinal (RF12 a RF17, RN01 a RN08)
+- Histórico e detalhes da atividade com a rota no mapa (RF31, RF32)
+- XP, moedas, níveis e avatar personalizável (RN10, RF11, RF19)
+- Hidratação com meta diária, histórico e lembretes (RF09, RF10, RF28 a RF30)
+- Baús, inventário e equipamentos (RF22 a RF26)
+- Mapa de fases e combate contra o chefe (RN11 a RN15)
+- Sincronização de atividades offline sem duplicidade (RN04, RN05)
+- Log de auditoria (RNF18, RNF19)
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Decisões de arquitetura
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+- Localização com `expo-location`, compatível com o Expo Go, no lugar de
+  `react-native-geolocation-service`.
+- Dados salvos no aparelho (SQLite e AsyncStorage), pois o backend Spring Boot
+  ainda não está integrado.
+- Mapa OpenStreetMap exibido por uma WebView com Leaflet.
+- Regras de negócio isoladas em `src/domain`, sem dependência de tela.
 
-## Get a fresh project
+## Limitações desta versão
 
-When you're ready, run:
+- Sem backend: autenticação, recuperação de senha e sincronização são
+  simuladas localmente. O envio de e-mail não existe.
+- O rastreamento GPS funciona com o app aberto e a tela ligada (limite do Expo Go).
+- Os tiles do mapa exigem internet. Sem conexão, a atividade continua
+  sendo gravada, mas o fundo do mapa fica vazio.
+- Lembretes de água por notificação local (não push remoto).
+- Sem comparação por hash nem envio apenas das diferenças (RN16).
+- O bloco "Modo demonstração" da aba Mapa simula atividades e só aparece em
+  desenvolvimento.
 
-```bash
-npm run reset-project
-```
+## Estrutura
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-### Other setup steps
-
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+    src/app          telas e rotas (Expo Router)
+    src/components   componentes reutilizáveis
+    src/domain       regras de negócio puras
+    src/db           acesso ao SQLite
+    src/services     sincronização e lembretes
+    src/state        contexto de autenticação
+    src/theme        cores e espaçamentos
