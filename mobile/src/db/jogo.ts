@@ -2,6 +2,7 @@ import type { Cabelo, Genero } from '../domain/avatar';
 import { aplicarXp, calcularRecompensa } from '../domain/jogo';
 import { getDb } from '.';
 import type { Metricas } from './atividades';
+import { getDbFases, registrarDistanciaNaFase } from './fases';
 
 export type Avatar = {
   nivel: number;
@@ -94,6 +95,8 @@ export async function concluirAtividadeComRecompensa(
   m: Metricas,
 ): Promise<ResultadoRecompensa> {
   await garantirJogador(usuarioId);
+  await getDbFases(); // <-- Alteração 2 adicionada aqui
+  
   const db = await getDb();
   let resultado!: ResultadoRecompensa;
 
@@ -152,6 +155,9 @@ export async function concluirAtividadeComRecompensa(
        VALUES (?, ?, ?, ?, ?, ?)`,
       [atividadeId, r.xp, r.moedas, r.multiplicador, avatar.nivel, novo.nivel],
     );
+
+    // <-- Alteração 3 adicionada aqui
+    await registrarDistanciaNaFase(db, usuarioId, m.distanciaMetros);
 
     resultado = {
       xp: r.xp,

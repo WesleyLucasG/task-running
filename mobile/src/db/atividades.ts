@@ -133,3 +133,19 @@ export async function excluirAtividade(id: string, usuarioId: string): Promise<v
   const db = await getDb();
   await db.runAsync(`DELETE FROM atividades WHERE id = ? AND usuario_id = ?`, [id, usuarioId]);
 }
+// UC09: atividades concluídas que ainda não chegaram ao "servidor"
+export async function listarPendentesSync(usuarioId: string): Promise<Atividade[]> {
+  const db = await getDb();
+  const linhas = await db.getAllAsync<Linha>(
+    `SELECT * FROM atividades
+      WHERE usuario_id = ? AND status = 'CONCLUIDA' AND sincronizado = 0
+      ORDER BY data_inicio ASC`,
+    [usuarioId],
+  );
+  return linhas.map(mapear);
+}
+
+export async function marcarSincronizada(id: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(`UPDATE atividades SET sincronizado = 1 WHERE id = ?`, [id]);
+}

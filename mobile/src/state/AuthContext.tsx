@@ -6,6 +6,7 @@ type AuthCtx = {
   carregando: boolean;
   entrar: (email: string, senha: string) => Promise<void>;
   cadastrar: (dados: Auth.DadosCadastro) => Promise<void>;
+  atualizarPerfil: (dados: Auth.DadosPerfil) => Promise<void>;
   sair: () => Promise<void>;
 };
 
@@ -26,6 +27,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     carregando,
     entrar: async (email, senha) => setUsuario(await Auth.entrar(email, senha)),
     cadastrar: async (dados) => setUsuario(await Auth.cadastrar(dados)),
+    atualizarPerfil: async (dados) => {
+      if (!usuario) return;
+      setUsuario(await Auth.atualizarPerfil(usuario.id, dados));
+    },
     sair: async () => {
       await Auth.sair();
       setUsuario(null);

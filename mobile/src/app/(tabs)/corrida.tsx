@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import NetInfo from '@react-native-community/netinfo';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
@@ -8,12 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Botao } from '../../components/Botao';
 import { Estatistica } from '../../components/Estatistica';
 import { MapaOSM } from '../../components/MapaOSM';
-import {
-  cancelarAtividade,
-  iniciarAtividade,
-  salvarPonto,
-  TipoAtividade,
-} from '../../db/atividades';
+import { cancelarAtividade, iniciarAtividade, salvarPonto, TipoAtividade } from '../../db/atividades';
 import { concluirAtividadeComRecompensa } from '../../db/jogo';
 import {
   calcularPace,
@@ -30,6 +26,7 @@ import {
   velocidadeKmh,
   VELOCIDADE_MAX_KMH,
 } from '../../domain/geo';
+import { sincronizarPendentes } from '../../services/sincronizacao';
 import { useAuth } from '../../state/AuthContext';
 import { cores, espaco, fontes, raio } from '../../theme';
 
@@ -44,7 +41,6 @@ export default function Corrida() {
   const [pontosMapa, setPontosMapa] = useState<[number, number][]>([]);
   const [semSinal, setSemSinal] = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const [debug, setDebug] = useState('');
 
   // Valores internos que mudam o tempo todo (refs não redesenham a tela)
   const atividadeId = useRef<string | null>(null);
@@ -99,34 +95,22 @@ export default function Corrida() {
     setPontosMapa((p) => [...p, [latitude, longitude]]);
   }
 
-   async function iniciar() {
-    setDebug('1) toque recebido');
-    if (!usuario) {
-      setDebug('ERRO: usuário nulo');
-      return;
-    }
+  async function iniciar() {
+    if (!usuario) return;
     try {
-      setDebug('2) pedindo permissão de localização...');
+      // RNF14: permissão explícita do usuário
       const permissao = await Location.requestForegroundPermissionsAsync();
-      setDebug('3) permissão: ' + permissao.status);
       if (permissao.status !== 'granted') {
         Alert.alert('Permissão necessária', 'Precisamos acessar o GPS para registrar sua atividade.');
         return;
       }
-
-      setDebug('4) verificando se o GPS está ligado...');
-      const gpsLigado = await Location.hasServicesEnabledAsync();
-      setDebug('5) GPS ligado: ' + gpsLigado);
-      if (!gpsLigado) {
+      if (!(await Location.hasServicesEnabledAsync())) {
         Alert.alert('GPS desligado', 'Ative a localização do aparelho e tente novamente.');
         return;
       }
 
-      setDebug('6) criando atividade no banco...');
       const inicio = new Date();
       atividadeId.current = await iniciarAtividade(usuario.id, tipo, inicio);
-      setDebug('7) banco ok, iniciando rastreamento...');
-
       inicioMs.current = inicio.getTime();
       distMetros.current = 0;
       referencia.current = null;
@@ -142,32 +126,32 @@ export default function Corrida() {
       await activateKeepAwakeAsync('corrida');
 
       relogio.current = setInterval(() => {
-        setSegundos(Math.floor((Date.now() - inicioMs.current) / 1000));
-        setSemSinal(Date.now() - ultimoSinalLocal.current > 10000);
+        setSegundos(Math.floor((Date.now() - inicioMs.current) / 1000)); // RN06
+        setSemSinal(Date.now() - ultimoSinalLocal.current > 10000); // RF17
       }, 1000);
 
       assinatura.current = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0 },
         aoReceberLocalizacao,
       );
-      setDebug('8) rastreando');
     } catch (e) {
-      setDebug('ERRO: ' + (e instanceof Error ? e.message : String(e)));
       pararSensores();
       setAtiva(false);
+      Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível iniciar a atividade.');
     }
   }
 
-    async function finalizar() {
+  async function finalizar() {
     const id = atividadeId.current;
     if (!id || !usuario) return;
+    const usuarioId = usuario.id;
     setSalvando(true);
     pararSensores();
     try {
       const fim = Date.now();
       const duracao = Math.round((fim - inicioMs.current) / 1000); // RN06
       const dist = distMetros.current;
-      await concluirAtividadeComRecompensa(id, usuario.id, {
+      await concluirAtividadeComRecompensa(id, usuarioId, {
         dataFim: new Date(fim),
         duracaoSegundos: duracao,
         distanciaMetros: dist,
@@ -175,6 +159,14 @@ export default function Corrida() {
         paceMedio: calcularPace(dist, duracao), // RN08 já tratada dentro da função
       });
       atividadeId.current = null;
+
+      // RF16: se há internet, já sincroniza; se não, fica pendente (RN05)
+      NetInfo.fetch().then((rede) => {
+        if (rede.isConnected && rede.isInternetReachable !== false) {
+          sincronizarPendentes(usuarioId).catch(() => {});
+        }
+      });
+
       setAtiva(false);
       router.push(`/atividade/${id}`);
     } catch (e) {
@@ -208,7 +200,7 @@ export default function Corrida() {
   const pace = calcularPace(distancia, segundos);
   const kcal = estimarCalorias(usuario?.peso ?? 0, distancia, tipo);
 
-   return (
+  return (
     <SafeAreaView style={estilos.raiz} edges={['top', 'left', 'right']}>
       <View style={estilos.topo}>
         <Text style={estilos.titulo}>CORRIDA</Text>
@@ -216,8 +208,6 @@ export default function Corrida() {
           <Ionicons name="time-outline" size={28} color={cores.laranja} />
         </Pressable>
       </View>
-      
-      {!!debug && <Text style={{ color: cores.dourado, fontSize: 12 }}>{debug}</Text>}
 
       {!ativa && (
         <View style={estilos.seletor}>
@@ -268,7 +258,6 @@ export default function Corrida() {
     </SafeAreaView>
   );
 }
-
 
 const estilos = StyleSheet.create({
   raiz: { flex: 1, backgroundColor: cores.fundo, padding: espaco.md, gap: espaco.md },

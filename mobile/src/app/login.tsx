@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Botao } from '../components/Botao';
 import { Campo } from '../components/Campo';
 import { Tela } from '../components/Tela';
-import { AuthProvider, useAuth } from '../state/AuthContext';
+import { useAuth } from '../state/AuthContext';
 import { cores, espaco, fontes, raio } from '../theme';
 
 export default function Login() {
@@ -51,6 +51,10 @@ export default function Login() {
         />
         {!!erro && <Text style={estilos.erro}>{erro}</Text>}
         <Botao titulo="ENTRAR" onPress={aoEntrar} carregando={carregando} />
+
+        <Link href="/recuperar-senha" style={estilos.esqueci}>
+          Esqueci minha senha
+        </Link>
       </View>
 
       <Text style={estilos.rodape}>
@@ -83,6 +87,7 @@ const estilos = StyleSheet.create({
   },
   titulo: { fontFamily: fontes.pixel, color: cores.texto, fontSize: 14 },
   erro: { color: cores.erro },
+  esqueci: { color: cores.laranja, fontWeight: '700', textAlign: 'center' },
   rodape: { color: cores.textoSuave, textAlign: 'center', marginTop: espaco.md },
   link: { color: cores.laranja, fontWeight: '700' },
 });
