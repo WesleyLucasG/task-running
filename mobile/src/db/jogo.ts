@@ -88,15 +88,14 @@ export type ResultadoRecompensa = {
   nivelDepois: number;
 };
 
-// Conclui a atividade e concede XP e moedas em uma única transação (RNF26)
+// Conclui a atividade e concede XP, moedas e distância na fase em uma única transação (RNF26)
 export async function concluirAtividadeComRecompensa(
   atividadeId: string,
   usuarioId: string,
   m: Metricas,
 ): Promise<ResultadoRecompensa> {
   await garantirJogador(usuarioId);
-  await getDbFases(); // <-- Alteração 2 adicionada aqui
-  
+  await getDbFases(); // garante que a tabela progresso_fase existe
   const db = await getDb();
   let resultado!: ResultadoRecompensa;
 
@@ -156,7 +155,7 @@ export async function concluirAtividadeComRecompensa(
       [atividadeId, r.xp, r.moedas, r.multiplicador, avatar.nivel, novo.nivel],
     );
 
-    // <-- Alteração 3 adicionada aqui
+    // RN13: a distância da atividade entra na fase atual (limitada à meta)
     await registrarDistanciaNaFase(db, usuarioId, m.distanciaMetros);
 
     resultado = {
