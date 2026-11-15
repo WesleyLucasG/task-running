@@ -21,7 +21,7 @@ public class HidratacaoController {
 
     @GetMapping
     public ResponseEntity<HidratacaoResponseDTO> obterStatusDiario(@AuthenticationPrincipal Usuario usuario) {
-        HidratacaoResponseDTO status = hidratacaoService.obterStatusDiario(usuario.getEmail());
+        HidratacaoResponseDTO status = hidratacaoService.obterStatusDiario(usuario.getCpf());
         return ResponseEntity.ok(status);
     }
 
@@ -29,7 +29,7 @@ public class HidratacaoController {
     public ResponseEntity<HidratacaoResponseDTO> registrarConsumo(
             @AuthenticationPrincipal Usuario usuario,
             @RequestBody @Valid RegistrarAguaRequestDTO dto) {
-        HidratacaoResponseDTO statusAtualizado = hidratacaoService.registrarConsumo(usuario.getUsername(), dto);
+        HidratacaoResponseDTO statusAtualizado = hidratacaoService.registrarConsumo(usuario.getCpf(), dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(statusAtualizado);
     }
 
@@ -37,7 +37,7 @@ public class HidratacaoController {
     public ResponseEntity<Void> alterarStatusLembrete(
             @AuthenticationPrincipal Usuario usuario,
             @RequestBody @Valid ConfigurarLembreteRequestDTO dto) {
-        hidratacaoService.alterarStatusLembrete(usuario.getUsername(), dto);
+        hidratacaoService.alterarStatusLembrete(usuario.getCpf(), dto);
         return ResponseEntity.noContent().build();
     }
 }
