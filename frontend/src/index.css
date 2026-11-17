@@ -1,0 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap');
+@import 'leaflet/dist/leaflet.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: #070c17;
+  color: #f1f5f9;
+  font-family: 'Rajdhani', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0f1724; }
+::-webkit-scrollbar-thumb { background: #1a2740; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #f97316; }
+
+.leaflet-container { background: #0f1724 !important; }
+.leaflet-tile { filter: brightness(0.75) saturate(0.8); }
