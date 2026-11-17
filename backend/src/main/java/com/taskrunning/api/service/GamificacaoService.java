@@ -122,8 +122,8 @@ public class GamificacaoService {
         carteiraRepository.save(carteira);
     }
 
-    private Usuario buscarUsuario(String email) {
-        return usuarioRepository.findByEmail(email)
+    private Usuario buscarUsuario(String cpf) {
+        return usuarioRepository.findByCpfAndAtivoTrue(cpf)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado."));
     }
 

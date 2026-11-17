@@ -46,6 +46,37 @@ public class AuthService {
             throw new BusinessRuleException("CPF já cadastrado no sistema.");
         }
 
+        int metaDiaria = dto.peso() != null ? (int) Math.round(dto.peso() * 35.0) : 2000;
+
+        // Reativar conta inativa com o mesmo CPF
+        java.util.Optional<Usuario> inativoOpt = usuarioRepository.findByCpfAndAtivoFalse(dto.cpf());
+        if (inativoOpt.isPresent()) {
+            Usuario usuario = inativoOpt.get();
+            usuario.setNome(dto.nome());
+            usuario.setEmail(dto.email());
+            usuario.setSenha(passwordEncoder.encode(dto.senha()));
+            usuario.setPeso(dto.peso());
+            usuario.setAtivo(true);
+            usuarioRepository.save(usuario);
+
+            configuracaoHidratacaoRepository.findByUsuarioId(usuario.getId()).ifPresentOrElse(
+                config -> {
+                    config.setMetaDiariaMl(metaDiaria);
+                    config.setLembreteAtivo(true);
+                    configuracaoHidratacaoRepository.save(config);
+                },
+                () -> {
+                    ConfiguracaoHidratacao config = new ConfiguracaoHidratacao();
+                    config.setUsuario(usuario);
+                    config.setMetaDiariaMl(metaDiaria);
+                    config.setLembreteAtivo(true);
+                    configuracaoHidratacaoRepository.save(config);
+                }
+            );
+            return;
+        }
+
+        // Criar novo usuário
         Usuario usuario = new Usuario();
         usuario.setNome(dto.nome());
         usuario.setEmail(dto.email());
@@ -55,13 +86,6 @@ public class AuthService {
         usuario.setAtivo(true);
 
         Usuario usuarioSalvo = usuarioRepository.save(usuario);
-
-        int metaDiaria = 2000;
-        if (usuarioSalvo != null && usuarioSalvo.getMetaAguaMl() != null) {
-            metaDiaria = usuarioSalvo.getMetaAguaMl().intValue();
-        } else if (dto.peso() != null) {
-            metaDiaria = (int) Math.round(dto.peso() * 35.0);
-        }
 
         ConfiguracaoHidratacao configuracao = new ConfiguracaoHidratacao();
         configuracao.setUsuario(usuarioSalvo != null ? usuarioSalvo : usuario);

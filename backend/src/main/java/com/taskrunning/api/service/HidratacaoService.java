@@ -25,8 +25,8 @@ public class HidratacaoService {
     private final UsuarioRepository usuarioRepository;
 
     @Transactional
-    public HidratacaoResponseDTO obterStatusDiario(String emailUsuario) {
-        Usuario usuario = buscarUsuarioPorEmail(emailUsuario);
+    public HidratacaoResponseDTO obterStatusDiario(String cpfUsuario) {
+        Usuario usuario = buscarUsuarioPorCpf(cpfUsuario);
         ConfiguracaoHidratacao config = buscarConfiguracaoDoUsuario(usuario);
         int consumidoHoje = obterConsumoDoDia(usuario.getId());
 
@@ -34,8 +34,8 @@ public class HidratacaoService {
     }
 
     @Transactional
-    public HidratacaoResponseDTO registrarConsumo(String emailUsuario, RegistrarAguaRequestDTO dto) {
-        Usuario usuario = buscarUsuarioPorEmail(emailUsuario);
+    public HidratacaoResponseDTO registrarConsumo(String cpfUsuario, RegistrarAguaRequestDTO dto) {
+        Usuario usuario = buscarUsuarioPorCpf(cpfUsuario);
 
         RegistroHidratacao novoRegistro = new RegistroHidratacao();
         novoRegistro.setUsuario(usuario);
@@ -51,8 +51,8 @@ public class HidratacaoService {
     }
 
     @Transactional
-    public void alterarStatusLembrete(String emailUsuario, ConfigurarLembreteRequestDTO dto) {
-        Usuario usuario = buscarUsuarioPorEmail(emailUsuario);
+    public void alterarStatusLembrete(String cpfUsuario, ConfigurarLembreteRequestDTO dto) {
+        Usuario usuario = buscarUsuarioPorCpf(cpfUsuario);
         ConfiguracaoHidratacao config = buscarConfiguracaoDoUsuario(usuario);
 
         config.setLembreteAtivo(dto.lembreteAtivo());
@@ -60,9 +60,9 @@ public class HidratacaoService {
 
 
 
-    private Usuario buscarUsuarioPorEmail(String email) {
-        return usuarioRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para o e-mail: " + email));
+    private Usuario buscarUsuarioPorCpf(String cpf) {
+        return usuarioRepository.findByCpfAndAtivoTrue(cpf)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para o CPF: " + cpf));
     }
 
     private ConfiguracaoHidratacao buscarConfiguracaoDoUsuario(Usuario usuario) {
