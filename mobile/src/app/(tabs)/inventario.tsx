@@ -77,13 +77,15 @@ export default function Inventario() {
     }
   }
 
-  const equipar = (i: ItemInventario) => executar(i.id, () => alternarEquipado(usuario!.id, i.id));
+  // uid calculado na renderização (seguro) em vez de usuario!.id dentro das funções (React Compiler)
+  const uid = usuario?.id ?? '';
+  const equipar = (i: ItemInventario) => executar(i.id, () => alternarEquipado(uid, i.id));
   const mover = (i: ItemInventario, destino: 'INVENTARIO' | 'BAU') => {
     if (destino === 'BAU' && i.equipado) {
       Alert.alert('Item equipado', 'Desequipe o item antes de guardá-lo no baú.');
       return;
     }
-    executar(i.id, () => moverItemDeLocal(usuario!.id, i.id, destino));
+    executar(i.id, () => moverItemDeLocal(uid, i.id, destino));
   };
 
   return (
@@ -166,7 +168,8 @@ export default function Inventario() {
         visivel={!!abrindo}
         bau={abrindo?.tipo}
         abrir={async () => {
-          const item = await abrirBau(usuario!.id, abrindo!.id);
+          if (!abrindo) throw new Error('Baú indisponível.');
+          const item = await abrirBau(uid, abrindo.id);
           await carregar();
           avisarJogadorAlterado();
           return item;

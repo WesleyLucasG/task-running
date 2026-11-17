@@ -141,9 +141,11 @@ export default function Home() {
         visivel={!!abrindo}
         bau={abrindo?.tipo}
         abrir={async () => {
-          const id = abrindo!.id;
+          // Sem "abrindo!.id": o React Compiler leria abrindo.id durante a renderização (abrindo = null)
+          if (!abrindo || !usuario) throw new Error('Baú indisponível.');
+          const id = abrindo.id;
           removerBau(id); // sai da faixa mesmo se já tiver sido aberto pelo Inventário
-          const item = await abrirBau(usuario!.id, id);
+          const item = await abrirBau(usuario.id, id);
           avisarJogadorAlterado();
           return item;
         }}
