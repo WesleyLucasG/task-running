@@ -1,10 +1,10 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import { BarraProgresso } from '../../components/BarraProgresso';
-import { Botao } from '../../components/Botao';
-import { Campo } from '../../components/Campo';
-import { Tela } from '../../components/Tela';
+import { BarraProgresso } from '../components/BarraProgresso';
+import { Botao } from '../components/Botao';
+import { Campo } from '../components/Campo';
+import { Tela } from '../components/Tela';
 import {
   ConfigLembrete,
   DiaHidratacao,
@@ -13,11 +13,11 @@ import {
   registrarConsumo,
   salvarConfig,
   totalDoDia,
-} from '../../db/hidratacao';
-import { formatarDia } from '../../domain/datas';
-import { agendarLembretes, cancelarLembretes, testarLembrete } from '../../services/lembretes';
-import { useAuth } from '../../state/AuthContext';
-import { cores, espaco, fontes, raio } from '../../theme';
+} from '../db/hidratacao';
+import { formatarDia } from '../domain/datas';
+import { agendarLembretes, cancelarLembretes, testarLembrete } from '../services/lembretes';
+import { useAuth } from '../state/AuthContext';
+import { cores, espaco, fontes, raio } from '../theme';
 
 const ATALHOS = [200, 300, 500];
 const INTERVALOS = [1, 2, 3, 4];

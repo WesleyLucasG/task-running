@@ -1,16 +1,16 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { AvatarPixel } from '../../components/AvatarPixel';
-import { BarraProgresso } from '../../components/BarraProgresso';
-import { Botao } from '../../components/Botao';
-import { Estatistica } from '../../components/Estatistica';
-import { Tela } from '../../components/Tela';
-import { atualizarAparencia, Avatar, obterJogador } from '../../db/jogo';
-import { CABELOS, CORES_ROUPA, GENEROS, TONS_PELE } from '../../domain/avatar';
-import { multiplicadorAgilidade, xpParaProximoNivel } from '../../domain/jogo';
-import { useAuth } from '../../state/AuthContext';
-import { cores, espaco, fontes, raio } from '../../theme';
+import { AvatarPixel } from '../components/AvatarPixel';
+import { BarraProgresso } from '../components/BarraProgresso';
+import { Botao } from '../components/Botao';
+import { Estatistica } from '../components/Estatistica';
+import { Tela } from '../components/Tela';
+import { atualizarAparencia, Avatar, obterJogador } from '../db/jogo';
+import { CABELOS, CORES_ROUPA, GENEROS, TONS_PELE } from '../domain/avatar';
+import { multiplicadorAgilidade, xpParaProximoNivel } from '../domain/jogo';
+import { useAuth } from '../state/AuthContext';
+import { cores, espaco, fontes, raio } from '../theme';
 
 type Jogador = { avatar: Avatar; moedas: number };
 type Aparencia = Partial<Pick<Avatar, 'genero' | 'cabelo' | 'corPele' | 'corRoupa'>>;

@@ -1,28 +1,15 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { ColorValue } from 'react-native';
-import { cores } from '../../theme';
+import { BarraAbas } from '../../components/BarraAbas';
 
-const icone =
-  (nome: keyof typeof Ionicons.glyphMap) =>
-  ({ color, size }: { color: ColorValue; size: number }) => (
-    <Ionicons name={nome} color={color as string} size={size} />
-  );
-
+// Abas conforme o Figma: HOME, MAP, INVENTORY, SHOP.
+// Corrida, Hidratação e Perfil são telas da pilha, abertas pela Home e pelo menu lateral.
 export default function TabsLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: cores.laranja,
-        tabBarInactiveTintColor: cores.textoSuave,
-        tabBarStyle: { backgroundColor: cores.superficie, borderTopColor: cores.borda },
-      }}>
-      <Tabs.Screen name="index" options={{ title: 'Mapa', tabBarIcon: icone('map') }} />
-      <Tabs.Screen name="corrida" options={{ title: 'Corrida', tabBarIcon: icone('walk') }} />
-      <Tabs.Screen name="hidratacao" options={{ title: 'Água', tabBarIcon: icone('water') }} />
-      <Tabs.Screen name="inventario" options={{ title: 'Inventário', tabBarIcon: icone('bag') }} />
-      <Tabs.Screen name="perfil" options={{ title: 'Perfil', tabBarIcon: icone('person') }} />
+    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <BarraAbas {...props} />}>
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="mapa" />
+      <Tabs.Screen name="inventario" />
+      <Tabs.Screen name="loja" />
     </Tabs>
   );
 }

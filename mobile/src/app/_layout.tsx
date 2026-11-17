@@ -1,5 +1,8 @@
 import NetInfo from '@react-native-community/netinfo';
-import { PressStart2P_400Regular, useFonts } from '@expo-google-fonts/press-start-2p';
+import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
+import { PressStart2P_400Regular } from '@expo-google-fonts/press-start-2p';
+import { SpaceMono_400Regular, SpaceMono_700Bold } from '@expo-google-fonts/space-mono';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -12,7 +15,14 @@ SplashScreen.preventAutoHideAsync();
 
 function Rotas() {
   const { usuario, carregando } = useAuth();
-  const [fontesOk, erroFonte] = useFonts({ PressStart2P_400Regular });
+  const [fontesOk, erroFonte] = useFonts({
+    PressStart2P_400Regular,
+    SpaceMono_400Regular,
+    SpaceMono_700Bold,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_700Bold,
+  });
   const pronto = !carregando && (fontesOk || !!erroFonte);
 
   useEffect(() => {
@@ -37,6 +47,9 @@ function Rotas() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: cores.fundo } }}>
       <Stack.Protected guard={!!usuario}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="corrida" />
+        <Stack.Screen name="hidratacao" />
+        <Stack.Screen name="perfil" />
         <Stack.Screen name="historico" />
         <Stack.Screen name="atividade/[id]" />
         <Stack.Screen name="editar-perfil" />

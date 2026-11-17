@@ -6,11 +6,11 @@ import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Botao } from '../../components/Botao';
-import { Estatistica } from '../../components/Estatistica';
-import { MapaOSM } from '../../components/MapaOSM';
-import { cancelarAtividade, iniciarAtividade, salvarPonto, TipoAtividade } from '../../db/atividades';
-import { concluirAtividadeComRecompensa } from '../../db/jogo';
+import { Botao } from '../components/Botao';
+import { Estatistica } from '../components/Estatistica';
+import { MapaOSM } from '../components/MapaOSM';
+import { cancelarAtividade, iniciarAtividade, salvarPonto, TipoAtividade } from '../db/atividades';
+import { concluirAtividadeComRecompensa } from '../db/jogo';
 import {
   calcularPace,
   coordenadaValida,
@@ -25,10 +25,10 @@ import {
   PRECISAO_MAX_M,
   velocidadeKmh,
   VELOCIDADE_MAX_KMH,
-} from '../../domain/geo';
-import { sincronizarPendentes } from '../../services/sincronizacao';
-import { useAuth } from '../../state/AuthContext';
-import { cores, espaco, fontes, raio } from '../../theme';
+} from '../domain/geo';
+import { sincronizarPendentes } from '../services/sincronizacao';
+import { useAuth } from '../state/AuthContext';
+import { cores, espaco, fontes, raio } from '../theme';
 
 export default function Corrida() {
   const { usuario } = useAuth();
