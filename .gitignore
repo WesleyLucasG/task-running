@@ -33,3 +33,7 @@ mobile_antigo/
 node_modules/
 out/
 .expo/
+
+# Frontend env local (nunca commitar)
+frontend/.env
+frontend/.env.local
