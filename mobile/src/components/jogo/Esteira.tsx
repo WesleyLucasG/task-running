@@ -4,18 +4,20 @@ import type { Avatar } from '../../db/jogo';
 import type { FaseCatalogo } from '../../domain/fases';
 import { Estado, Inimigo, progressoDaVolta } from '../../domain/idle';
 import { cores, espaco, fontes } from '../../theme';
+import type { EfeitoLoot } from '../../state/useEsteira';
 import { AvatarPixel } from '../AvatarPixel';
+import { BauPixel } from '../BauPixel';
 
 const JANELA = 30; // unidades do mundo visíveis na tela
 const ALTURA = 210;
 const CHAO = 44; // altura da faixa de chão
 
-type Props = { estado: Estado; fase: FaseCatalogo; avatar: Avatar; vidaMaxHeroi: number };
+type Props = { estado: Estado; fase: FaseCatalogo; avatar: Avatar; vidaMaxHeroi: number; efeitos?: EfeitoLoot[] };
 
 // Cena da esteira idle (Figma "Combate", quadro superior): cenário com rolagem lateral,
 // herói à esquerda, monstros chegando pela direita, vida sobre as cabeças,
 // números de dano e a barra "Progresso da fase" embaixo.
-export function Esteira({ estado, fase, avatar, vidaMaxHeroi }: Props) {
+export function Esteira({ estado, fase, avatar, vidaMaxHeroi, efeitos = [] }: Props) {
   const [largura, setLargura] = useState(320);
   const ppu = largura / JANELA;
   const heroiX = largura * 0.22;
@@ -100,6 +102,34 @@ export function Esteira({ estado, fase, avatar, vidaMaxHeroi }: Props) {
               ]}>
               -{t.valor}
             </Text>
+          );
+        })}
+
+        {/* Loot: moeda subindo com "+N" e baú caindo com quique (D19) */}
+        {efeitos.map((f) => {
+          const idade = estado.tempo - f.criadoEm;
+          if (idade < 0 || idade > 1400) return null;
+          const x = xDe(f.pos);
+          if (f.tipo === 'MOEDA') {
+            return (
+              <View
+                key={f.id}
+                style={[
+                  estilos.moeda,
+                  { left: x - 16, bottom: CHAO + 40 + idade * 0.045, opacity: Math.max(0, 1 - idade / 1400) },
+                ]}>
+                <View style={estilos.moedaIcone} />
+                <Text style={estilos.moedaTexto}>+{f.valor}</Text>
+              </View>
+            );
+          }
+          // Queda com um quique: desce 40 px e sobe um pouco antes de assentar
+          const t = Math.min(1, idade / 500);
+          const altura = idade < 500 ? 40 * (1 - t * t) : Math.max(0, 8 * Math.sin(((idade - 500) / 300) * Math.PI));
+          return (
+            <View key={f.id} style={[estilos.bauQueda, { left: x - 12, bottom: CHAO - 2 + altura }]}>
+              <BauPixel tipo={f.bau ?? 'COMUM'} tamanho={24} />
+            </View>
           );
         })}
 
@@ -218,6 +248,17 @@ const estilos = StyleSheet.create({
     paddingHorizontal: 4,
     backgroundColor: '#0F172AAA',
   },
+  moeda: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 3 },
+  moedaIcone: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: cores.douradoClaro,
+    borderWidth: 1,
+    borderColor: cores.douradoEscuro,
+  },
+  moedaTexto: { fontFamily: fontes.pixel, fontSize: 9, color: cores.douradoClaro },
+  bauQueda: { position: 'absolute' },
   aviso: { position: 'absolute', top: 60, left: 0, right: 0, alignItems: 'center' },
   avisoTexto: {
     fontFamily: fontes.pixel,

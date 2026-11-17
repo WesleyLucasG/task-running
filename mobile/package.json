@@ -52,7 +52,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "node --experimental-strip-types --no-warnings --test testes/idle.test.mjs"
+    "test": "node --experimental-strip-types --no-warnings --import ./testes/resolver.mjs --test testes/idle.test.mjs testes/loot.test.mjs"
   },
   "private": true
 }

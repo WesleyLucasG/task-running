@@ -51,7 +51,21 @@ export function getDbLoja(): Promise<SQLite.SQLiteDatabase> {
           data_adquirido TEXT NOT NULL,
           FOREIGN KEY (item_id) REFERENCES itens(id)
         );
+
+        -- Recompensa de chefe concedida (garante "uma única vez" por fase, D19)
+        CREATE TABLE IF NOT EXISTS recompensas_chefe (
+          usuario_id TEXT NOT NULL,
+          fase_numero INTEGER NOT NULL,
+          concedida_em TEXT NOT NULL,
+          PRIMARY KEY (usuario_id, fase_numero)
+        );
       `);
+
+      // Migração: baú de armazenamento (coluna local = 'INVENTARIO' | 'BAU')
+      const colunas = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(inventario)`);
+      if (!colunas.some((c) => c.name === 'local')) {
+        await db.execAsync(`ALTER TABLE inventario ADD COLUMN local TEXT NOT NULL DEFAULT 'INVENTARIO'`);
+      }
 
       await db.withTransactionAsync(async () => {
         for (const i of CATALOGO) {

@@ -1,7 +1,8 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Avatar, obterJogador } from '../db/jogo';
 import { useAuth } from './AuthContext';
+import { ouvirJogadorAlterado } from './sinais';
 
 // Dados do jogador (avatar + moedas) recarregados sempre que a tela ganha foco.
 export function useJogador() {
@@ -18,6 +19,8 @@ export function useJogador() {
       recarregar().catch(() => {});
     }, [recarregar]),
   );
+
+  useEffect(() => ouvirJogadorAlterado(() => void recarregar().catch(() => {})), [recarregar]);
 
   return { usuario, avatar: dados?.avatar ?? null, moedas: dados?.moedas ?? 0, recarregar };
 }

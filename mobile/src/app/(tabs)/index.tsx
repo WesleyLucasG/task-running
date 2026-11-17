@@ -1,10 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Href, router } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AvatarPixel } from '../../components/AvatarPixel';
 import { CabecalhoJogo } from '../../components/CabecalhoJogo';
+import { BauPixel } from '../../components/BauPixel';
 import { Esteira } from '../../components/jogo/Esteira';
-import { useEsteira } from '../../state/useEsteira';
+import { RevelacaoItem } from '../../components/RevelacaoItem';
+import { abrirBau } from '../../db/inventario';
+import { ROTULO_BAU } from '../../domain/loja';
+import { avisarJogadorAlterado } from '../../state/sinais';
+import { BauEncontrado, useEsteira } from '../../state/useEsteira';
 import { useJogador } from '../../state/useJogador';
 import { cores, espaco, fontes } from '../../theme';
 
@@ -12,7 +18,9 @@ import { cores, espaco, fontes } from '../../theme';
 // painel do herói (HP e Energia Divina), histórico de batalha e ações.
 export default function Home() {
   const { usuario, avatar } = useJogador();
-  const { info, estado, log } = useEsteira();
+  const { info, estado, log, efeitos, bausEncontrados, removerBau, lendario, fecharLendario } = useEsteira();
+  const [abrindo, setAbrindo] = useState<BauEncontrado | null>(null);
+  const ultimoBau = bausEncontrados[bausEncontrados.length - 1];
 
   const pronto = !!(info && estado && avatar && info.fase);
   const heroi = info?.contexto.heroi;
@@ -25,13 +33,34 @@ export default function Home() {
       <CabecalhoJogo titulo="COMBATE ATIVO" />
       <ScrollView contentContainerStyle={estilos.conteudo}>
         {pronto ? (
-          <Esteira estado={estado!} fase={info!.fase!} avatar={avatar!} vidaMaxHeroi={heroi!.vidaMax} />
+          <Esteira
+            estado={estado!}
+            fase={info!.fase!}
+            avatar={avatar!}
+            vidaMaxHeroi={heroi!.vidaMax}
+            efeitos={efeitos}
+          />
         ) : info && !info.fase ? (
           <View style={estilos.fim}>
             <Text style={estilos.fimTitulo}>TODAS AS TERRAS CONQUISTADAS!</Text>
           </View>
         ) : (
           <View style={estilos.carregando} />
+        )}
+
+        {ultimoBau && (
+          <View style={estilos.faixaBau}>
+            <BauPixel tipo={ultimoBau.tipo} tamanho={30} />
+            <View style={{ flex: 1 }}>
+              <Text style={estilos.faixaTitulo}>{ROTULO_BAU[ultimoBau.tipo].toUpperCase()} ENCONTRADO!</Text>
+              <Text style={estilos.faixaSub}>
+                {bausEncontrados.length > 1 ? `${bausEncontrados.length} baús nesta sessão · ` : ''}também ficam no Inventário
+              </Text>
+            </View>
+            <Pressable style={estilos.faixaBotao} onPress={() => setAbrindo(ultimoBau)}>
+              <Text style={estilos.faixaBotaoTexto}>ABRIR</Text>
+            </Pressable>
+          </View>
         )}
 
         <View style={estilos.painel}>
@@ -106,6 +135,22 @@ export default function Home() {
           <Acao icone="time-outline" titulo="HISTÓRICO" subtitulo="Suas corridas" destino="/historico" />
         </View>
       </ScrollView>
+
+      {/* Abertura do baú encontrado na esteira */}
+      <RevelacaoItem
+        visivel={!!abrindo}
+        bau={abrindo?.tipo}
+        abrir={async () => {
+          const id = abrindo!.id;
+          removerBau(id); // sai da faixa mesmo se já tiver sido aberto pelo Inventário
+          const item = await abrirBau(usuario!.id, id);
+          avisarJogadorAlterado();
+          return item;
+        }}
+        aoFechar={() => setAbrindo(null)}
+      />
+      {/* Bônus lendário do chefe (10%) */}
+      <RevelacaoItem visivel={!!lendario} itemPronto={lendario} aoFechar={fecharLendario} />
     </View>
   );
 }
@@ -180,6 +225,26 @@ const estilos = StyleSheet.create({
     borderColor: cores.dourado,
   },
   fimTitulo: { fontFamily: fontes.pixel, color: cores.douradoClaro, fontSize: 11, textAlign: 'center' },
+  faixaBau: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espaco.md,
+    padding: espaco.sm,
+    paddingHorizontal: espaco.md,
+    backgroundColor: '#422006',
+    borderWidth: 2,
+    borderColor: cores.dourado,
+  },
+  faixaTitulo: { fontFamily: fontes.monoNegrito, color: cores.douradoClaro, fontSize: 12 },
+  faixaSub: { fontFamily: fontes.texto, color: cores.textoSuave, fontSize: 11 },
+  faixaBotao: {
+    backgroundColor: cores.laranja,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.sm,
+    borderBottomWidth: 3,
+    borderBottomColor: cores.laranjaEscuro,
+  },
+  faixaBotaoTexto: { fontFamily: fontes.pixel, color: cores.texto, fontSize: 10 },
   painel: {
     padding: espaco.md,
     gap: espaco.md,

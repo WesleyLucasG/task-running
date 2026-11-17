@@ -99,7 +99,7 @@ export type Estado = {
 };
 
 export type Evento =
-  | { tipo: 'MONSTRO_DERROTADO' }
+  | { tipo: 'MONSTRO_DERROTADO'; pos: number }
   | { tipo: 'HEROI_DERROTADO' }
   | { tipo: 'CHEFE_SELADO'; motivo: string }
   | { tipo: 'CONFRONTO_FIM'; dano: number; derrotado: boolean; causa: 'VITORIA' | 'ENERGIA' | 'MORTE' };
@@ -222,7 +222,7 @@ export function passo(
         e.modo = 'VITORIA';
         eventos.push({ tipo: 'CONFRONTO_FIM', dano: e.danoNoConfronto, derrotado: true, causa: 'VITORIA' });
       } else {
-        eventos.push({ tipo: 'MONSTRO_DERROTADO' });
+        eventos.push({ tipo: 'MONSTRO_DERROTADO', pos: inimigo.pos });
       }
       return { estado: e, eventos };
     }

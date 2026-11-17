@@ -21,6 +21,7 @@ import { cores, espaco, fontes } from '../../theme';
 // Cartões com a cor da raridade, como no Figma "Loja" (3:2900)
 const VISUAL_RARIDADE = {
   COMUM: { fundo: '#F1F5F9', borda: '#CBD5E1', texto: '#0F172A', selo: 'COMMON' },
+  INCOMUM: { fundo: '#BBF7D0', borda: '#16A34A', texto: '#14532D', selo: 'UNCOMMON' },
   RARO: { fundo: '#94A3B8', borda: cores.laranja, texto: '#0F172A', selo: 'RARE' },
   EPICO: { fundo: '#FED7AA', borda: cores.laranja, texto: '#7C2D12', selo: 'EPIC' },
   LENDARIO: { fundo: '#FEF3C7', borda: cores.dourado, texto: '#713F12', selo: 'LEGENDARY' },

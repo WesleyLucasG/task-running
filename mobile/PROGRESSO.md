@@ -54,6 +54,8 @@ Tela Bloqueio `108:324`, `6:6392`.
 | D16 | Pontos de habilidade | 2 pontos por km concluído → Força (+2 dano), Vitalidade (+10 vida), Velocidade (+5% ataques). Pontos de Força entram na força base da RN12. Tela `/atributos` (item "Árvore de Atributos" do menu, agora liberado) | pedido (melhoria) |
 | D17 | Loja | Catálogo de 16 itens com preços do Figma (150/450/1200/2500), oferta do dia −30% com contagem até meia-noite, compra atômica (saldo + inventário) | D3 |
 | D18 | Motor 2D | Não foi usado o `expo-2d-game-engine`: a cena é feita com Views do React Native (motor puro em `domain/idle.ts`), sem dependência nova e compatível com Expo Go | simplicidade/prazo |
+| D19 | **Loot e baú de armazenamento (pedido de 17/11)** | Monstro comum: moedas sempre (1/2/2/3/3 por fase) + 20% de baú (70% comum / 25% incomum / 5% raro / 0% lendário), **sem XP** (RF18). Chefe derrotado: baú Ouro (já existia) + 10% de item lendário extra, **uma vez por fase** (tabela `recompensas_chefe`). Baú de armazenamento = coluna `local` no inventário (só muda de lugar, nunca recria a linha); item equipado não pode ser guardado. Configuração central em `domain/recompensas.ts`. Sorteios com gerador criptográfico (`expo-crypto`) | pedido; diverge de RF18 (moedas só por distância) e RF23 (só comum/raro) — divergências aceitas pelo Wesley |
+| D20 | Raridade Incomum | Criada para o baú incomum entregar item incomum. 4 itens novos com ids 17–20; ids 1–16 preservados (inventário existente intacto) | D19 |
 | D10 | Fases | Usar os nomes do Mapa do Figma (Bosque de Hermes…) e manter as metas de distância do código; trava por nível do Figma não entra | RF20/RF21 |
 
 ## Correções feitas
@@ -76,8 +78,9 @@ Tela Bloqueio `108:324`, `6:6392`.
 - [ ] 10. Perfil *(depende do Figma)*
 - [ ] 11. Corrida e Resumo *(depende do Figma)*
 - [x] **Jogo idle** (D15–D16): `domain/idle.ts` (motor puro + 6 testes), `components/jogo/Esteira.tsx`, `state/useEsteira.ts`, Home = Combate, `/atributos`
+- [x] **Loot** (D19–D20): moedas e baús por monstro, lendário do chefe, abertura animada, baú de armazenamento no Inventário
 - [ ] 12. Mapa Mundi (fases já renomeadas conforme o Figma)
-- [ ] 13. Inventário e Baús *(depende do Figma)*
+- [x] 13. Inventário e Baús (abas INVENTÁRIO/BAÚ; layout próprio até a tela do Figma ser consultada)
 - [x] 14. Loja
 - [x] 15. Combate (virou a Home com a esteira)
 - [ ] 16. Integração com o backend (JWT, sincronização) + testes
@@ -89,3 +92,4 @@ Tela Bloqueio `108:324`, `6:6392`.
 | 16/11/2026 | `tsc --noEmit`, `expo lint`, `expo export --platform android` (passo 0) | OK |
 | 16/11/2026 | idem (passos 1–6) | OK, 0 erros e 0 avisos |
 | 17/11/2026 | `npm test` (motor idle), `tsc`, `lint`, `expo export` | 6/6 testes OK, 0 erros |
+| 17/11/2026 | `npm test` (13: motor idle + loot com SQLite em memória), `tsc`, `lint`, `expo export` | 13/13 OK, 0 erros |

@@ -2,7 +2,10 @@ import * as Crypto from 'expo-crypto';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { diaLocal } from '../domain/datas';
 import { calcularDano, FaseCatalogo, FASES, fasePorNumero } from '../domain/fases';
+import { ferramentasReais } from './aleatorio';
 import { getDbLoja } from './loja';
+import { concederRecompensaChefe } from './regrasLoot';
+import type { ItemCatalogo } from '../domain/loja';
 
 let pronto: Promise<SQLiteDatabase> | null = null;
 
@@ -74,6 +77,7 @@ export type ResultadoAtaque = {
   vidaMaxima: number;
   derrotado: boolean;
   proximaFase: string | null;
+  itemLendario: ItemCatalogo | null; // bônus de 10% do chefe (D19)
 };
 
 async function garantirAvatar(db: SQLiteDatabase, usuarioId: string) {
@@ -102,7 +106,7 @@ function faseAtualDe(db: SQLiteDatabase, usuarioId: string) {
   );
 }
 
-async function concederBau(db: SQLiteDatabase, usuarioId: string, tipo: 'PRATA' | 'OURO') {
+async function concederBau(db: SQLiteDatabase, usuarioId: string, tipo: 'PRATA') {
   const agora = new Date();
   await db.runAsync(
     `INSERT INTO baus (id, usuario_id, tipo, resgatado, criado_em, dia) VALUES (?, ?, ?, 0, ?, ?)`,
@@ -275,8 +279,11 @@ export async function registrarConfronto(usuarioId: string, danoCausado: number)
     );
 
     let proximaFase: string | null = null;
+    let itemLendario: ItemCatalogo | null = null;
     if (derrotado) {
-      await concederBau(db, usuarioId, 'OURO'); // RF22
+      // RF22 (baú Ouro) + 10% de item lendário, uma única vez por chefe (D19)
+      const premio = await concederRecompensaChefe(db, usuarioId, fase.numero, ferramentasReais);
+      itemLendario = premio.itemLendario;
       const proxima = fasePorNumero(fase.numero + 1);
       if (proxima) {
         // RN13: cada nova fase começa com distância acumulada zero
@@ -294,6 +301,7 @@ export async function registrarConfronto(usuarioId: string, danoCausado: number)
       vidaMaxima: fase.chefe.vidaMaxima,
       derrotado,
       proximaFase,
+      itemLendario,
     };
   });
 
