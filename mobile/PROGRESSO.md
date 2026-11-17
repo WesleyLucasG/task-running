@@ -29,7 +29,7 @@ Tela Bloqueio `108:324`, `6:6392`.
 
 1. Brasão "TR" (logo) → `assets/images/logo-tr.png` (hoje há um substituto em `LogoTR.tsx`)
 2. Fundo pixel art da Abertura/Login → `assets/images/fundo-olimpo.png`
-3. Poses do Hermes com fundo transparente → `assets/hermes/*.png`
+3. ~~Poses do Hermes~~ **feito**: recortadas automaticamente da folha de sprites enviada (11 PNGs em `assets/hermes/`)
 4. Ilustração "Terras de Gaia" do Mapa → `assets/images/mapa-gaia.png`
 5. Cenário e monstros do Combate → `assets/combate/*.png`
 
@@ -46,6 +46,10 @@ Tela Bloqueio `108:324`, `6:6392`.
 | D7 | Pílulas do cabeçalho | 1ª = nível do avatar, 2ª = moedas. A "Energia Divina" do Figma não existe no doc | RF18/RF19 |
 | D8 | Classe "Guerreiro" (Criação de Personagem) | Não exibir classes | §2.4 Classes é roadmap |
 | D9 | Fontes | Press Start 2P (títulos), Space Mono (rótulos), DM Sans (texto). As duas últimas foram identificadas visualmente; confirmar com `get_variable_defs` quando houver cota | Figma |
+| D11 | Dica de senha | Figma diz "mínimo de 6 caracteres"; usado o texto do RF08 (8, letra, número e especial) | RF08 |
+| D12 | Textos do Onboarding 2/3 | Layout fiel; descrições ajustadas para não prometer mecânicas fora do escopo (combate em tempo real, armadura) | §2.4 |
+| D13 | Fluxo de entrada | Abertura → Onboarding I–III (1ª vez no aparelho) → Cadastro/Login → Permissões → Criação de Personagem (1ª vez da conta) → Home | ordem do canvas do Figma |
+| D14 | Cadastro | Campos do Figma (confirmar e-mail, altura opcional, aceite do Código de Honra); peso continua obrigatório | RF01 |
 | D10 | Fases | Usar os nomes do Mapa do Figma (Bosque de Hermes…) e manter as metas de distância do código; trava por nível do Figma não entra | RF20/RF21 |
 
 ## Correções feitas
@@ -56,12 +60,12 @@ Tela Bloqueio `108:324`, `6:6392`.
 ## Andamento (ordem aprovada)
 
 - [x] **0. Base visual**: tokens do Figma (`theme`), fontes, `Botao` (sombra pixel, 5 variantes), `Campo` (ícone, olho de senha, ajuda/erro), `CabecalhoJogo`, `MenuLateral`, `BarraAbas`, `LogoTR`, `useJogador`, branding do `app.json`, Home provisória, placeholder da Loja
-- [ ] 1. Abertura
-- [ ] 2. Login
-- [ ] 3. Cadastro
-- [ ] 4. Onboarding com Hermes
-- [ ] 5. Permissões
-- [ ] 6. Criação de Personagem
+- [x] 1. Abertura (`components/Abertura.tsx`, exibida no `_layout`)
+- [x] 2. Login ("Lembrar-me" real: sem marcar, a sessão não é salva)
+- [x] 3. Cadastro
+- [x] 4. Onboarding com Hermes (capítulos II e III fiéis; **capítulo I provisório**, tela não consultada)
+- [x] 5. Permissões (GPS e notificações reais)
+- [x] 6. Criação de Personagem (`SeletorAparencia` reutilizável no Perfil)
 - [ ] 7. Tutorial *(depende do Figma)*
 - [ ] 8. Home *(depende do Figma)*
 - [ ] 9. Menu lateral (estrutura feita no passo 0)
@@ -77,4 +81,5 @@ Tela Bloqueio `108:324`, `6:6392`.
 
 | Data | Verificação | Resultado |
 |---|---|---|
-| 16/11/2026 | `tsc --noEmit`, `expo lint`, `expo export --platform android` | OK (1 aviso antigo em `cadastro.tsx`) |
+| 16/11/2026 | `tsc --noEmit`, `expo lint`, `expo export --platform android` (passo 0) | OK |
+| 16/11/2026 | idem (passos 1–6) | OK, 0 erros e 0 avisos |

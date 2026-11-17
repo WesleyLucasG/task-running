@@ -17,7 +17,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-async function garantirPermissao(): Promise<boolean> {
+export async function garantirPermissao(): Promise<boolean> {
   const atual = await Notifications.getPermissionsAsync();
   if (atual.status === 'granted') return true;
   const pedido = await Notifications.requestPermissionsAsync();

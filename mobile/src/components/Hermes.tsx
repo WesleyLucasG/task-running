@@ -1,71 +1,107 @@
-import { Image, ImageSourcePropType, StyleSheet, Text, View } from 'react-native';
-import { cores, espaco, raio } from '../theme';
+import { useEffect, useState } from 'react';
+import { Image, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { cores, espaco, fontes } from '../theme';
+
+// Sprites recortados da folha de poses do Hermes (fundo transparente).
+export const POSES_HERMES = {
+  acenando: require('../../assets/hermes/acenando.png'),
+  apresentando: require('../../assets/hermes/apresentando.png'),
+  cajado: require('../../assets/hermes/cajado.png'),
+  falando: require('../../assets/hermes/falando.png'),
+  mapa: require('../../assets/hermes/mapa.png'),
+  reverencia: require('../../assets/hermes/reverencia.png'),
+  disparada: require('../../assets/hermes/disparada.png'),
+} as const;
+
+const QUADROS_CORRIDA = [
+  require('../../assets/hermes/corrida-1.png'),
+  require('../../assets/hermes/corrida-2.png'),
+  require('../../assets/hermes/corrida-3.png'),
+];
+
+export type PoseHermes = keyof typeof POSES_HERMES | 'correndo';
+
+// Sprite isolado do Hermes. "correndo" anima os 3 quadros da corrida.
+export function SpriteHermes({ pose = 'acenando', altura = 120 }: { pose?: PoseHermes; altura?: number }) {
+  const [quadro, setQuadro] = useState(0);
+
+  useEffect(() => {
+    if (pose !== 'correndo') return;
+    const id = setInterval(() => setQuadro((q) => (q + 1) % QUADROS_CORRIDA.length), 160);
+    return () => clearInterval(id);
+  }, [pose]);
+
+  const fonte = pose === 'correndo' ? QUADROS_CORRIDA[quadro] : POSES_HERMES[pose];
+  return (
+    <Image
+      source={fonte}
+      style={{ height: altura, width: altura * 0.7 }}
+      resizeMode="contain"
+      accessibilityLabel="Hermes, o mensageiro"
+    />
+  );
+}
 
 type Props = {
   mensagem: string;
-  imagem?: ImageSourcePropType; // quando você tiver o PNG do sprite, é só passar aqui
+  pose?: PoseHermes;
   tamanho?: number;
+  destaque?: boolean; // moldura laranja com losango (Onboarding 3)
+  estilo?: ViewStyle;
 };
 
-export function Hermes({ mensagem, imagem, tamanho = 84 }: Props) {
-  const u = tamanho / 12;
-
-  const bloco = (k: string, x: number, y: number, w: number, h: number, cor: string) => (
-    <View
-      key={k}
-      style={{
-        position: 'absolute',
-        left: x * u,
-        top: y * u,
-        width: w * u,
-        height: h * u,
-        backgroundColor: cor,
-      }}
-    />
-  );
-
+// Caixa "MENSAGEIRO HERMES" do Figma: retrato à esquerda, rótulo laranja e fala em itálico.
+export function Hermes({ mensagem, pose = 'acenando', tamanho = 84, destaque = false, estilo }: Props) {
   return (
-    <View style={estilos.linha}>
-      {imagem ? (
-        <Image source={imagem} style={{ width: tamanho, height: tamanho * 1.5 }} resizeMode="contain" />
-      ) : (
-        <View style={{ width: 12 * u, height: 18 * u }}>
-          {bloco('capa', 1, 8, 10, 6, '#6B7F3A')}
-          {bloco('perna-e', 3, 13, 2, 4, '#E8B27A')}
-          {bloco('perna-d', 7, 13, 2, 4, '#E8B27A')}
-          {bloco('sandalia-e', 3, 17, 2, 1, '#FACC15')}
-          {bloco('sandalia-d', 7, 17, 2, 1, '#FACC15')}
-          {bloco('tunica', 2, 8, 8, 5, '#F8FAFC')}
-          {bloco('cinto', 2, 11, 8, 1, '#FACC15')}
-          {bloco('braco-e', 1, 8, 1, 4, '#E8B27A')}
-          {bloco('braco-d', 10, 8, 1, 4, '#E8B27A')}
-          {bloco('cabeca', 3, 3, 6, 5, '#E8B27A')}
-          {bloco('olho-e', 4, 5, 1, 1, '#0F172A')}
-          {bloco('olho-d', 7, 5, 1, 1, '#0F172A')}
-          {bloco('capacete', 3, 1, 6, 2, '#FACC15')}
-          {bloco('asa-e', 1, 1, 2, 2, '#F8FAFC')}
-          {bloco('asa-d', 9, 1, 2, 2, '#F8FAFC')}
-        </View>
-      )}
-      <View style={estilos.balao}>
-        <Text style={estilos.nome}>HERMES</Text>
-        <Text style={estilos.texto}>{mensagem}</Text>
+    <View style={[estilos.caixa, destaque && estilos.destaque, estilo]}>
+      <View style={[estilos.retrato, { width: tamanho, height: tamanho }]}>
+        <SpriteHermes pose={pose} altura={tamanho - 6} />
       </View>
+      <View style={estilos.texto}>
+        <Text style={estilos.nome}>MENSAGEIRO HERMES</Text>
+        <Text style={estilos.fala}>&quot;{mensagem}&quot;</Text>
+      </View>
+      {destaque && <View style={estilos.losango} />}
     </View>
   );
 }
 
 const estilos = StyleSheet.create({
-  linha: { flexDirection: 'row', alignItems: 'center', gap: espaco.md },
-  balao: {
-    flex: 1,
+  caixa: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espaco.md,
+    padding: espaco.md,
     backgroundColor: cores.superficie,
     borderWidth: 2,
-    borderColor: cores.dourado,
-    borderRadius: raio.md,
-    padding: espaco.md,
-    gap: espaco.xs,
+    borderColor: cores.borda,
   },
-  nome: { color: cores.dourado, fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  texto: { color: cores.texto, fontSize: 14 },
+  destaque: {
+    backgroundColor: cores.fundo,
+    borderColor: 'transparent',
+    borderRightColor: cores.laranja,
+    borderBottomColor: cores.laranja,
+    borderRightWidth: 3,
+    borderBottomWidth: 3,
+  },
+  retrato: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    backgroundColor: cores.superficieAlta,
+    borderWidth: 2,
+    borderColor: cores.borda,
+    overflow: 'hidden',
+  },
+  texto: { flex: 1, gap: espaco.sm },
+  nome: { fontFamily: fontes.mono, color: cores.laranja, fontSize: 11, letterSpacing: 2 },
+  fala: { fontFamily: fontes.texto, fontStyle: 'italic', color: cores.texto, fontSize: 14, lineHeight: 20 },
+  losango: {
+    position: 'absolute',
+    right: -9,
+    bottom: -9,
+    width: 14,
+    height: 14,
+    backgroundColor: cores.laranja,
+    transform: [{ rotate: '45deg' }],
+  },
 });
