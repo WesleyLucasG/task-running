@@ -1,6 +1,9 @@
 import * as Crypto from 'expo-crypto';
 import { CATALOGO, Raridade, sortearRaridade, TipoBau, TipoItem } from '../domain/loja';
+import { escolherItem } from '../domain/recompensas';
+import { aleatorioSeguro } from './aleatorio';
 import { getDbLoja } from './loja';
+import { descartarItem, LocalItem, moverItem } from './regrasLoot';
 
 export type Bau = { id: string; tipo: TipoBau; criadoEm: string };
 
@@ -13,6 +16,7 @@ export type ItemInventario = {
   bonusForca: number;
   bonusVida: number;
   equipado: boolean;
+  local: LocalItem; // INVENTARIO ou BAU (baú de armazenamento)
 };
 
 export async function listarBaus(usuarioId: string): Promise<Bau[]> {
@@ -38,14 +42,13 @@ export async function abrirBau(usuarioId: string, bauId: string): Promise<ItemIn
     if (!bau) throw new Error('Baú não encontrado.'); // RN07
     if (bau.resgatado === 1) throw new Error('Este baú já foi aberto.');
 
-    const raridade = sortearRaridade(bau.tipo);
-    const candidatos = CATALOGO.filter((i) => i.raridade === raridade);
-    const item = candidatos[Math.floor(Math.random() * candidatos.length)];
+    const raridade = sortearRaridade(bau.tipo, aleatorioSeguro);
+    const item = escolherItem(CATALOGO, raridade, aleatorioSeguro);
     const registroId = Crypto.randomUUID();
 
     await db.runAsync(
-      `INSERT INTO inventario (id, usuario_id, item_id, equipado, data_adquirido)
-       VALUES (?, ?, ?, 0, ?)`,
+      `INSERT INTO inventario (id, usuario_id, item_id, equipado, data_adquirido, local)
+       VALUES (?, ?, ?, 0, ?, 'INVENTARIO')`,
       [registroId, usuarioId, item.id, new Date().toISOString()],
     );
     await db.runAsync(`UPDATE baus SET resgatado = 1 WHERE id = ?`, [bauId]);
@@ -59,6 +62,7 @@ export async function abrirBau(usuarioId: string, bauId: string): Promise<ItemIn
       bonusForca: item.bonusForca,
       bonusVida: item.bonusVida,
       equipado: false,
+      local: 'INVENTARIO',
     };
   });
 
@@ -72,13 +76,14 @@ export async function listarInventario(usuarioId: string): Promise<ItemInventari
     id: string;
     item_id: number;
     equipado: number;
+    local: LocalItem;
     nome: string;
     tipo: TipoItem;
     raridade: Raridade;
     bonus_forca: number;
     bonus_vida: number;
   }>(
-    `SELECT inv.id, inv.item_id, inv.equipado, i.nome, i.tipo, i.raridade, i.bonus_forca, i.bonus_vida
+    `SELECT inv.id, inv.item_id, inv.equipado, inv.local, i.nome, i.tipo, i.raridade, i.bonus_forca, i.bonus_vida
        FROM inventario inv JOIN itens i ON i.id = inv.item_id
       WHERE inv.usuario_id = ?
       ORDER BY inv.equipado DESC, inv.data_adquirido DESC`,
@@ -93,6 +98,7 @@ export async function listarInventario(usuarioId: string): Promise<ItemInventari
     bonusForca: l.bonus_forca,
     bonusVida: l.bonus_vida,
     equipado: l.equipado === 1,
+    local: l.local,
   }));
 }
 
@@ -100,13 +106,14 @@ export async function listarInventario(usuarioId: string): Promise<ItemInventari
 export async function alternarEquipado(usuarioId: string, registroId: string): Promise<void> {
   const db = await getDbLoja();
   await db.withTransactionAsync(async () => {
-    const alvo = await db.getFirstAsync<{ equipado: number; tipo: string }>(
-      `SELECT inv.equipado, i.tipo
+    const alvo = await db.getFirstAsync<{ equipado: number; tipo: string; local: LocalItem }>(
+      `SELECT inv.equipado, inv.local, i.tipo
          FROM inventario inv JOIN itens i ON i.id = inv.item_id
         WHERE inv.id = ? AND inv.usuario_id = ?`,
       [registroId, usuarioId],
     );
     if (!alvo) throw new Error('Item não encontrado.'); // RN07
+    if (alvo.local === 'BAU') throw new Error('Retire o item do baú antes de equipá-lo.');
 
     if (alvo.equipado === 1) {
       await db.runAsync(`UPDATE inventario SET equipado = 0 WHERE id = ?`, [registroId]);
@@ -132,4 +139,16 @@ export async function bonusEquipados(usuarioId: string): Promise<{ forca: number
     [usuarioId],
   );
   return { forca: l?.forca ?? 0, vida: l?.vida ?? 0 };
+}
+// Baú de armazenamento (D19): guardar/retirar sem alterar o item
+export async function moverItemDeLocal(usuarioId: string, registroId: string, destino: LocalItem): Promise<void> {
+  const db = await getDbLoja();
+  await moverItem(db, usuarioId, registroId, destino);
+}
+
+
+// Descartar item da mochila em troca de moedas (2/4/6/8/10 por raridade)
+export async function descartarItemDaMochila(usuarioId: string, registroId: string) {
+  const db = await getDbLoja();
+  return descartarItem(db, usuarioId, registroId);
 }

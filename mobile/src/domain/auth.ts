@@ -9,6 +9,7 @@ export type Usuario = {
   nome: string;
   email: string;
   peso: number;
+  altura?: number; // metros; opcional (Figma: "Em metro e centímetros")
   metaAguaMl: number;
   criadoEm: string;
 };
@@ -20,6 +21,7 @@ export type DadosCadastro = {
   email: string;
   cpf: string;
   peso: string;
+  altura?: string;
   senha: string;
   confirmarSenha: string;
 };
@@ -78,12 +80,24 @@ function validarDadosBasicos(nome: string, email: string, peso: number) {
   }
 }
 
+// Altura opcional: aceita "1,75", "1.75" ou "175" (cm). undefined = não informada; null = inválida.
+export function converterAltura(bruto?: string): number | undefined | null {
+  const t = (bruto ?? '').trim().replace(',', '.');
+  if (!t) return undefined;
+  let m = Number(t);
+  if (!Number.isFinite(m)) return null;
+  if (m > 3) m = m / 100;
+  return m >= 0.5 && m <= 2.5 ? Math.round(m * 100) / 100 : null;
+}
+
 export async function cadastrar(d: DadosCadastro): Promise<Usuario> {
   const nome = d.nome.trim();
   const email = d.email.trim().toLowerCase();
   const peso = Number(d.peso.replace(',', '.'));
+  const altura = converterAltura(d.altura);
 
   validarDadosBasicos(nome, email, peso);
+  if (altura === null) throw new Error('Informe uma altura válida (ex.: 1,75).');
   if (!validarCpf(d.cpf)) throw new Error('CPF inválido.');
   const erroSenha = validarSenha(d.senha);
   if (erroSenha) throw new Error(erroSenha);
@@ -102,6 +116,7 @@ export async function cadastrar(d: DadosCadastro): Promise<Usuario> {
     nome,
     email,
     peso,
+    ...(altura !== undefined && { altura }),
     metaAguaMl: calcularMetaAgua(peso),
     criadoEm: new Date().toISOString(),
     senhaHash: await hash(d.senha),
@@ -114,7 +129,8 @@ export async function cadastrar(d: DadosCadastro): Promise<Usuario> {
   return publico(novo);
 }
 
-export async function entrar(emailBruto: string, senha: string): Promise<Usuario> {
+// lembrar = false ("LEMBRAR-ME" desmarcado no Figma): a sessão vale só enquanto o app estiver aberto
+export async function entrar(emailBruto: string, senha: string, lembrar = true): Promise<Usuario> {
   const email = emailBruto.trim().toLowerCase();
   const tentativas = await lerJson<Record<string, RegistroTentativas>>(CHAVE_TENTATIVAS, {});
   let reg = tentativas[email] ?? { falhas: 0, bloqueadoAte: 0 };
@@ -148,7 +164,8 @@ export async function entrar(emailBruto: string, senha: string): Promise<Usuario
 
   delete tentativas[email];
   await salvarJson(CHAVE_TENTATIVAS, tentativas);
-  await AsyncStorage.setItem(CHAVE_SESSAO, achado.id);
+  if (lembrar) await AsyncStorage.setItem(CHAVE_SESSAO, achado.id);
+  else await AsyncStorage.removeItem(CHAVE_SESSAO);
   await registrarEvento('LOGIN', 'SUCESSO', { email, usuarioId: achado.id });
   return publico(achado);
 }

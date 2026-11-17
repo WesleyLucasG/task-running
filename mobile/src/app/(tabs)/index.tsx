@@ -1,238 +1,321 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
-import { Alert, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import { BarraProgresso } from '../../components/BarraProgresso';
-import { Botao } from '../../components/Botao';
-import { Hermes } from '../../components/Hermes';
-import { Tela } from '../../components/Tela';
-import { iniciarAtividade } from '../../db/atividades';
-import { atacarChefe, EstadoMapa, obterEstadoMapa, Situacao } from '../../db/fases';
-import { concluirAtividadeComRecompensa } from '../../db/jogo';
-import { calcularPace, estimarCalorias } from '../../domain/geo';
-import { useAuth } from '../../state/AuthContext';
-import { cores, espaco, fontes, raio } from '../../theme';
+import { Href, router } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AvatarPixel } from '../../components/AvatarPixel';
+import { CabecalhoJogo } from '../../components/CabecalhoJogo';
+import { BauPixel } from '../../components/BauPixel';
+import { Esteira } from '../../components/jogo/Esteira';
+import { RevelacaoItem } from '../../components/RevelacaoItem';
+import { abrirBau } from '../../db/inventario';
+import { ROTULO_BAU } from '../../domain/loja';
+import { avisarJogadorAlterado } from '../../state/sinais';
+import { BauEncontrado, useEsteira } from '../../state/useEsteira';
+import { useJogador } from '../../state/useJogador';
+import { cores, espaco, fontes } from '../../theme';
 
-const ICONE: Record<Situacao, keyof typeof Ionicons.glyphMap> = {
-  CONCLUIDA: 'checkmark-circle',
-  ATUAL: 'location',
-  BLOQUEADA: 'lock-closed',
-};
-const COR: Record<Situacao, string> = {
-  CONCLUIDA: cores.sucesso,
-  ATUAL: cores.laranja,
-  BLOQUEADA: cores.textoSuave,
-};
+// HOME = layout do Figma "Combate" (3:3886, aba HOME ativa): cena da esteira idle,
+// painel do herói (HP e Energia Divina), histórico de batalha e ações.
+export default function Home() {
+  const { usuario, avatar } = useJogador();
+  const { info, estado, log, efeitos, bausEncontrados, removerBau, lendario, fecharLendario } = useEsteira();
+  const [abrindo, setAbrindo] = useState<BauEncontrado | null>(null);
+  const ultimoBau = bausEncontrados[bausEncontrados.length - 1];
 
-const km = (metros: number) => (metros / 1000).toFixed(2);
-
-function mensagemHermes(e: EstadoMapa | null): string {
-  if (!e) return 'Carregando o mapa...';
-  if (e.jogoConcluido || !e.atual) {
-    return 'Você conquistou todas as terras disponíveis! Novas aventuras chegam em breve.';
-  }
-  const a = e.atual;
-  if (!a.chefeLiberado) {
-    const faltam = Math.max(0, a.fase.metaDistanciaMetros - a.acumuladaMetros);
-    return `Faltam ${km(faltam)} km para liberar ${a.fase.chefe.nome}. Corra ou caminhe, herói!`;
-  }
-  if (a.podeAtacar) {
-    return `${a.fase.chefe.nome} está liberado! Seu golpe causará cerca de ${a.danoEstimado} de dano.`;
-  }
-  return a.motivoBloqueio ?? '';
-}
-
-export default function Mapa() {
-  const { usuario } = useAuth();
-  const [estado, setEstado] = useState<EstadoMapa | null>(null);
-  const [ocupado, setOcupado] = useState(false);
-  const tremor = useRef(new Animated.Value(0)).current;
-
-  const carregar = useCallback(async () => {
-    if (!usuario) return;
-    setEstado(await obterEstadoMapa(usuario.id));
-  }, [usuario]);
-
-  useFocusEffect(
-    useCallback(() => {
-      carregar();
-    }, [carregar]),
-  );
-
-  function tremer() {
-    const passo = (valor: number) =>
-      Animated.timing(tremor, { toValue: valor, duration: 50, useNativeDriver: true });
-    Animated.sequence([passo(10), passo(-10), passo(6), passo(0)]).start();
-  }
-
-  async function atacar() {
-    if (!usuario || ocupado) return;
-    setOcupado(true);
-    try {
-      const r = await atacarChefe(usuario.id);
-      tremer();
-      if (r.derrotado) {
-        Alert.alert(
-          'Chefe derrotado!',
-          `Você causou ${r.dano} de dano e venceu a fase.\nUm Baú Ouro foi para o seu inventário.\n` +
-            (r.proximaFase
-              ? `Nova fase liberada: ${r.proximaFase}.`
-              : 'Você concluiu todas as fases do MVP!'),
-        );
-      } else {
-        Alert.alert(
-          'Golpe certeiro!',
-          `Você causou ${r.dano} de dano.\nVida do chefe: ${r.vidaRestante}/${r.vidaMaxima}.`,
-        );
-      }
-      await carregar();
-    } catch (e) {
-      Alert.alert('Não foi possível atacar', e instanceof Error ? e.message : 'Tente novamente.');
-    } finally {
-      setOcupado(false);
-    }
-  }
-
-  // MODO DEMONSTRAÇÃO: usa o mesmo caminho das atividades reais
-  async function simular(metros: number) {
-    if (!usuario || ocupado) return;
-    setOcupado(true);
-    try {
-      const duracao = Math.round(metros / 2.5);
-      const fim = new Date();
-      const inicio = new Date(fim.getTime() - duracao * 1000);
-      const id = await iniciarAtividade(usuario.id, 'CAMINHADA', inicio);
-      await concluirAtividadeComRecompensa(id, usuario.id, {
-        dataFim: fim,
-        duracaoSegundos: duracao,
-        distanciaMetros: metros,
-        calorias: estimarCalorias(usuario.peso, metros, 'CAMINHADA'),
-        paceMedio: calcularPace(metros, duracao),
-      });
-      await carregar();
-    } catch (e) {
-      Alert.alert('Erro na demonstração', e instanceof Error ? e.message : String(e));
-    } finally {
-      setOcupado(false);
-    }
-  }
-
-  const atual = estado?.atual ?? null;
+  const pronto = !!(info && estado && avatar && info.fase);
+  const heroi = info?.contexto.heroi;
+  const chefe = info?.contexto.chefe;
+  const energiaMax = chefe?.limiteDano ?? 0;
+  const energia = Math.max(0, energiaMax - (estado?.confrontoAtivo ? estado.danoNoConfronto : 0));
 
   return (
-    <Tela>
-      <Text style={estilos.titulo}>MAPA</Text>
-      <Hermes mensagem={mensagemHermes(estado)} />
-
-      {atual && (
-        <View style={estilos.cartao}>
-          <Text style={estilos.fase}>
-            FASE {atual.fase.numero} · {atual.fase.nome.toUpperCase()}
-          </Text>
-          <Text style={estilos.texto}>{atual.fase.descricao}</Text>
-          <BarraProgresso progresso={atual.acumuladaMetros / atual.fase.metaDistanciaMetros} />
-          <Text style={estilos.texto}>
-            {km(atual.acumuladaMetros)} / {km(atual.fase.metaDistanciaMetros)} km
-          </Text>
-        </View>
-      )}
-
-      <Text style={estilos.subtitulo}>TRILHA</Text>
-      {estado?.fases.map(({ fase, situacao }) => (
-        <View key={fase.numero} style={estilos.itemTrilha}>
-          <Ionicons name={ICONE[situacao]} size={24} color={COR[situacao]} />
-          <View style={{ flex: 1 }}>
-            <Text style={[estilos.nomeFase, { color: COR[situacao] }]}>
-              {fase.numero}. {fase.nome}
-            </Text>
-            <Text style={estilos.texto}>
-              Meta {km(fase.metaDistanciaMetros)} km · Chefe: {fase.chefe.nome}
-            </Text>
+    <View style={estilos.raiz}>
+      <CabecalhoJogo titulo="COMBATE ATIVO" />
+      <ScrollView contentContainerStyle={estilos.conteudo}>
+        {pronto ? (
+          <Esteira
+            estado={estado!}
+            fase={info!.fase!}
+            avatar={avatar!}
+            vidaMaxHeroi={heroi!.vidaMax}
+            efeitos={efeitos}
+          />
+        ) : info && !info.fase ? (
+          <View style={estilos.fim}>
+            <Text style={estilos.fimTitulo}>TODAS AS TERRAS CONQUISTADAS!</Text>
           </View>
-        </View>
-      ))}
+        ) : (
+          <View style={estilos.carregando} />
+        )}
 
-      {atual && atual.chefeLiberado && (
-        <>
-          <Text style={estilos.subtitulo}>SALA DO CHEFE</Text>
-          <View style={[estilos.cartao, { borderColor: cores.erro, alignItems: 'center' }]}>
-            <Animated.Text style={[estilos.emoji, { transform: [{ translateX: tremor }] }]}>
-              {atual.fase.chefe.emoji}
-            </Animated.Text>
-            <Text style={estilos.nomeChefe}>{atual.fase.chefe.nome.toUpperCase()}</Text>
-            <View style={{ alignSelf: 'stretch', gap: espaco.xs }}>
-              <BarraProgresso
-                progresso={atual.vidaAtualChefe / atual.fase.chefe.vidaMaxima}
-                cor={cores.erro}
-              />
-              <Text style={estilos.texto}>
-                Vida: {atual.vidaAtualChefe} / {atual.fase.chefe.vidaMaxima}
+        {ultimoBau && (
+          <View style={estilos.faixaBau}>
+            <BauPixel tipo={ultimoBau.tipo} tamanho={30} />
+            <View style={{ flex: 1 }}>
+              <Text style={estilos.faixaTitulo}>{ROTULO_BAU[ultimoBau.tipo].toUpperCase()} ENCONTRADO!</Text>
+              <Text style={estilos.faixaSub}>
+                {bausEncontrados.length > 1 ? `${bausEncontrados.length} baús nesta sessão · ` : ''}também ficam no Inventário
               </Text>
             </View>
-            <Text style={estilos.texto}>Dano estimado do seu próximo golpe: {atual.danoEstimado}</Text>
-            <Pressable
-              onPress={atacar}
-              disabled={!atual.podeAtacar || ocupado}
-              style={[estilos.atacar, (!atual.podeAtacar || ocupado) && { opacity: 0.4 }]}>
-              <Text style={estilos.atacarTexto}>ATACAR</Text>
+            <Pressable style={estilos.faixaBotao} onPress={() => setAbrindo(ultimoBau)}>
+              <Text style={estilos.faixaBotaoTexto}>ABRIR</Text>
             </Pressable>
-            {!!atual.motivoBloqueio && <Text style={estilos.motivo}>{atual.motivoBloqueio}</Text>}
           </View>
-        </>
-      )}
+        )}
 
-      {__DEV__ && (
-        <>
-          <Text style={estilos.subtitulo}>MODO DEMONSTRAÇÃO (ATIVIDADE SIMULADA)</Text>
-          <View style={estilos.linha}>
-            <View style={{ flex: 1 }}>
-              <Botao titulo="+1 KM" variante="contorno" onPress={() => simular(1000)} />
+        <View style={estilos.painel}>
+          <View style={estilos.linhaHeroi}>
+            <View style={estilos.retrato}>
+              {avatar && <AvatarPixel {...avatar} tamanho={22} />}
             </View>
             <View style={{ flex: 1 }}>
-              <Botao titulo="+3 KM" variante="contorno" onPress={() => simular(3000)} />
+              <Text style={estilos.nomeHeroi} numberOfLines={1}>
+                {(usuario?.nome ?? 'HERÓI').toUpperCase()}
+              </Text>
+              <Text style={estilos.atributos}>
+                ⚔ {heroi?.dano ?? 0}   ❤ {heroi?.vidaMax ?? 0}   ⚡ {heroi ? (1000 / heroi.intervaloMs).toFixed(1) : 0}/s
+              </Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={estilos.rotuloNivel}>NÍVEL</Text>
+              <Text style={estilos.nivel}>{avatar?.nivel ?? 1}</Text>
             </View>
           </View>
-        </>
-      )}
-    </Tela>
+
+          <Barra
+            icone="heart-outline"
+            rotulo="PONTOS DE VIDA (HP)"
+            atual={estado?.vida ?? 0}
+            maximo={heroi?.vidaMax ?? 1}
+            cor={cores.laranja}
+          />
+          <Barra
+            icone="flash-outline"
+            rotulo="ENERGIA DIVINA (SP)"
+            atual={energia}
+            maximo={energiaMax}
+            cor={cores.dourado}
+          />
+          <Text style={estilos.dica}>
+            {chefe?.podeEnfrentar
+              ? `Energia pronta: até ${energiaMax} de dano em ${info?.fase?.chefe.nome}.`
+              : (chefe?.motivo ?? '')}
+          </Text>
+        </View>
+
+        <View style={estilos.historico}>
+          <View style={estilos.linhaHistorico}>
+            <Ionicons name="information-circle-outline" size={14} color={cores.textoSuave} />
+            <Text style={estilos.rotuloHistorico}>HISTÓRICO DE BATALHA</Text>
+          </View>
+          {log.map((linha, i) => (
+            <Text key={`${i}-${linha}`} style={[estilos.linhaLog, i > 0 && { opacity: 0.6 }]}>
+              {linha}
+            </Text>
+          ))}
+        </View>
+
+        <View style={estilos.grade}>
+          <Acao
+            icone="footsteps-outline"
+            titulo="CORRER"
+            subtitulo="Ganhe XP e energia"
+            fundo={cores.laranja}
+            destino="/corrida"
+          />
+          <Acao
+            icone="flame-outline"
+            titulo="ATRIBUTOS"
+            subtitulo={`${info?.pontosDisponiveis ?? 0} pontos livres`}
+            fundo={cores.dourado}
+            destino="/atributos"
+            alerta={(info?.pontosDisponiveis ?? 0) > 0}
+          />
+          <Acao icone="water-outline" titulo="HIDRATAÇÃO" subtitulo="Meta diária" destino="/hidratacao" />
+          <Acao icone="time-outline" titulo="HISTÓRICO" subtitulo="Suas corridas" destino="/historico" />
+        </View>
+      </ScrollView>
+
+      {/* Abertura do baú encontrado na esteira */}
+      <RevelacaoItem
+        visivel={!!abrindo}
+        bau={abrindo?.tipo}
+        abrir={async () => {
+          // Sem "abrindo!.id": o React Compiler leria abrindo.id durante a renderização (abrindo = null)
+          if (!abrindo || !usuario) throw new Error('Baú indisponível.');
+          const id = abrindo.id;
+          removerBau(id); // sai da faixa mesmo se já tiver sido aberto pelo Inventário
+          const item = await abrirBau(usuario.id, id);
+          avisarJogadorAlterado();
+          return item;
+        }}
+        aoFechar={() => setAbrindo(null)}
+      />
+      {/* Bônus lendário do chefe (10%) */}
+      <RevelacaoItem visivel={!!lendario} itemPronto={lendario} aoFechar={fecharLendario} />
+    </View>
+  );
+}
+
+function Barra({
+  icone,
+  rotulo,
+  atual,
+  maximo,
+  cor,
+}: {
+  icone: keyof typeof Ionicons.glyphMap;
+  rotulo: string;
+  atual: number;
+  maximo: number;
+  cor: string;
+}) {
+  const pct = maximo > 0 ? Math.max(0, Math.min(1, atual / maximo)) : 0;
+  return (
+    <View style={{ gap: 6 }}>
+      <View style={estilos.linhaBarra}>
+        <Ionicons name={icone} size={14} color={cores.texto} />
+        <Text style={estilos.rotuloBarra}>{rotulo}</Text>
+        <Text style={estilos.valorBarra}>
+          {Math.round(atual)}/{maximo}
+        </Text>
+      </View>
+      <View style={estilos.trilho}>
+        <View style={{ width: `${pct * 100}%`, height: '100%', backgroundColor: cor }} />
+      </View>
+    </View>
+  );
+}
+
+function Acao({
+  icone,
+  titulo,
+  subtitulo,
+  fundo = cores.superficie,
+  destino,
+  alerta = false,
+}: {
+  icone: keyof typeof Ionicons.glyphMap;
+  titulo: string;
+  subtitulo: string;
+  fundo?: string;
+  destino: Href;
+  alerta?: boolean;
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [estilos.acao, { backgroundColor: fundo }, pressed && { opacity: 0.8 }]}
+      onPress={() => router.push(destino)}>
+      <Ionicons name={icone} size={24} color={cores.texto} />
+      <Text style={estilos.tituloAcao}>{titulo}</Text>
+      <Text style={estilos.subAcao}>{subtitulo}</Text>
+      {alerta && <View style={estilos.alerta} />}
+    </Pressable>
   );
 }
 
 const estilos = StyleSheet.create({
-  titulo: { fontFamily: fontes.pixel, color: cores.laranja, fontSize: 16, marginTop: espaco.md },
-  subtitulo: { fontFamily: fontes.pixel, color: cores.texto, fontSize: 12, marginTop: espaco.md },
-  texto: { color: cores.textoSuave, fontSize: 14 },
-  linha: { flexDirection: 'row', gap: espaco.sm },
-  cartao: {
+  raiz: { flex: 1, backgroundColor: cores.fundo },
+  conteudo: { padding: espaco.md, gap: espaco.md },
+  carregando: { height: 246, backgroundColor: cores.superficie, borderWidth: 3, borderColor: cores.borda },
+  fim: {
+    height: 246,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderWidth: 1,
-    borderRadius: raio.lg,
-    padding: espaco.lg,
-    gap: espaco.sm,
+    borderWidth: 3,
+    borderColor: cores.dourado,
   },
-  fase: { fontFamily: fontes.pixel, color: cores.dourado, fontSize: 12, lineHeight: 18 },
-  itemTrilha: {
+  fimTitulo: { fontFamily: fontes.pixel, color: cores.douradoClaro, fontSize: 11, textAlign: 'center' },
+  faixaBau: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: espaco.md,
-    backgroundColor: cores.superficie,
-    borderWidth: 1,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
+    padding: espaco.sm,
+    paddingHorizontal: espaco.md,
+    backgroundColor: '#422006',
+    borderWidth: 2,
+    borderColor: cores.dourado,
+  },
+  faixaTitulo: { fontFamily: fontes.monoNegrito, color: cores.douradoClaro, fontSize: 12 },
+  faixaSub: { fontFamily: fontes.texto, color: cores.textoSuave, fontSize: 11 },
+  faixaBotao: {
+    backgroundColor: cores.laranja,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.sm,
+    borderBottomWidth: 3,
+    borderBottomColor: cores.laranjaEscuro,
+  },
+  faixaBotaoTexto: { fontFamily: fontes.pixel, color: cores.texto, fontSize: 10 },
+  painel: {
     padding: espaco.md,
+    gap: espaco.md,
+    backgroundColor: cores.superficie,
+    borderWidth: 3,
+    borderColor: cores.borda,
   },
-  nomeFase: { fontSize: 15, fontWeight: '700' },
-  emoji: { fontSize: 72 },
-  nomeChefe: { fontFamily: fontes.pixel, color: cores.erro, fontSize: 13 },
-  atacar: {
-    alignSelf: 'stretch',
+  linhaHeroi: { flexDirection: 'row', alignItems: 'center', gap: espaco.md },
+  retrato: {
+    width: 44,
+    height: 44,
+    borderWidth: 2,
+    borderColor: cores.laranja,
     alignItems: 'center',
-    backgroundColor: cores.erro,
-    paddingVertical: espaco.md,
-    borderRadius: raio.md,
-    marginTop: espaco.sm,
+    justifyContent: 'center',
+    backgroundColor: cores.fundo,
   },
-  atacarTexto: { fontFamily: fontes.pixel, color: cores.texto, fontSize: 12 },
-  motivo: { color: cores.dourado, fontSize: 13, textAlign: 'center' },
+  nomeHeroi: { fontFamily: fontes.monoNegrito, color: cores.texto, fontSize: 13, letterSpacing: 1 },
+  atributos: { fontFamily: fontes.mono, color: cores.textoSuave, fontSize: 11, marginTop: 2 },
+  rotuloNivel: { fontFamily: fontes.mono, color: cores.textoSuave, fontSize: 9 },
+  nivel: { fontFamily: fontes.pixel, color: cores.laranja, fontSize: 16 },
+  linhaBarra: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rotuloBarra: { flex: 1, fontFamily: fontes.mono, color: cores.texto, fontSize: 11, letterSpacing: 1 },
+  valorBarra: { fontFamily: fontes.mono, color: cores.texto, fontSize: 11 },
+  trilho: { height: 14, backgroundColor: cores.fundo, borderWidth: 2, borderColor: cores.borda },
+  dica: { fontFamily: fontes.texto, color: cores.textoSuave, fontSize: 12 },
+  historico: {
+    padding: espaco.md,
+    gap: espaco.sm,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: cores.bordaClara,
+  },
+  linhaHistorico: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingBottom: espaco.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: cores.borda,
+  },
+  rotuloHistorico: { fontFamily: fontes.mono, color: cores.textoSuave, fontSize: 10, letterSpacing: 1 },
+  linhaLog: {
+    fontFamily: fontes.mono,
+    color: cores.douradoClaro,
+    fontSize: 12,
+    borderLeftWidth: 2,
+    borderLeftColor: cores.dourado,
+    paddingLeft: espaco.sm,
+  },
+  grade: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.sm },
+  acao: {
+    width: '48.5%',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: espaco.md,
+    borderBottomWidth: 4,
+    borderBottomColor: '#0006',
+  },
+  tituloAcao: { fontFamily: fontes.monoNegrito, color: cores.texto, fontSize: 13, letterSpacing: 1 },
+  subAcao: { fontFamily: fontes.mono, color: cores.texto, fontSize: 10, opacity: 0.85 },
+  alerta: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 10,
+    height: 10,
+    backgroundColor: cores.erro,
+    borderWidth: 1,
+    borderColor: cores.texto,
+  },
 });

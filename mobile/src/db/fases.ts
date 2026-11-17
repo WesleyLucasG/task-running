@@ -2,7 +2,10 @@ import * as Crypto from 'expo-crypto';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { diaLocal } from '../domain/datas';
 import { calcularDano, FaseCatalogo, FASES, fasePorNumero } from '../domain/fases';
+import { ferramentasReais } from './aleatorio';
 import { getDbLoja } from './loja';
+import { concederRecompensaChefe } from './regrasLoot';
+import type { ItemCatalogo } from '../domain/loja';
 
 let pronto: Promise<SQLiteDatabase> | null = null;
 
@@ -22,6 +25,14 @@ export function getDbFases(): Promise<SQLiteDatabase> {
           bau_meta_concedido INTEGER NOT NULL DEFAULT 0,
           ultimo_ataque_em TEXT,
           PRIMARY KEY (usuario_id, fase_numero)
+        );
+
+        -- Pontos de habilidade distribuídos (2 por km concluído, decisão D15)
+        CREATE TABLE IF NOT EXISTS habilidades (
+          usuario_id TEXT PRIMARY KEY NOT NULL,
+          forca INTEGER NOT NULL DEFAULT 0,
+          vitalidade INTEGER NOT NULL DEFAULT 0,
+          velocidade INTEGER NOT NULL DEFAULT 0
         );
       `);
       return db;
@@ -66,6 +77,7 @@ export type ResultadoAtaque = {
   vidaMaxima: number;
   derrotado: boolean;
   proximaFase: string | null;
+  itemLendario: ItemCatalogo | null; // bônus de 10% do chefe (D19)
 };
 
 async function garantirAvatar(db: SQLiteDatabase, usuarioId: string) {
@@ -94,7 +106,7 @@ function faseAtualDe(db: SQLiteDatabase, usuarioId: string) {
   );
 }
 
-async function concederBau(db: SQLiteDatabase, usuarioId: string, tipo: 'PRATA' | 'OURO') {
+async function concederBau(db: SQLiteDatabase, usuarioId: string, tipo: 'PRATA') {
   const agora = new Date();
   await db.runAsync(
     `INSERT INTO baus (id, usuario_id, tipo, resgatado, criado_em, dia) VALUES (?, ?, ?, 0, ?, ?)`,
@@ -159,6 +171,10 @@ async function lerContextoCombate(db: SQLiteDatabase, usuarioId: string): Promis
     `SELECT forca_base FROM avatares WHERE usuario_id = ?`,
     [usuarioId],
   );
+  const h = await db.getFirstAsync<{ forca: number }>(
+    `SELECT forca FROM habilidades WHERE usuario_id = ?`,
+    [usuarioId],
+  );
   const b = await db.getFirstAsync<{ forca: number }>(
     `SELECT COALESCE(SUM(i.bonus_forca), 0) AS forca
        FROM inventario inv JOIN itens i ON i.id = inv.item_id
@@ -168,7 +184,8 @@ async function lerContextoCombate(db: SQLiteDatabase, usuarioId: string): Promis
   return {
     maiorKm: (a?.maior ?? 0) / 1000, // RN12: maior distância das últimas 24h
     ultimaAtividade: a?.ultima ?? null,
-    forcaBase: f?.forca_base ?? 10,
+    // Pontos em Força somam à força base do herói (D15)
+    forcaBase: (f?.forca_base ?? 10) + (h?.forca ?? 0),
     bonusForca: b?.forca ?? 0,
   };
 }
@@ -228,8 +245,14 @@ export async function obterEstadoMapa(usuarioId: string): Promise<EstadoMapa> {
   };
 }
 
-// UC11
-export async function atacarChefe(usuarioId: string): Promise<ResultadoAtaque> {
+// UC11 (botão do mapa): um golpe com o dano máximo permitido pela RN12
+export function atacarChefe(usuarioId: string): Promise<ResultadoAtaque> {
+  return registrarConfronto(usuarioId, Number.POSITIVE_INFINITY);
+}
+
+// Confronto na esteira idle: o herói causou `danoCausado` ao chefe. O valor é limitado
+// pela RN12, a vida restante é persistida (RN15) e o confronto consome a atividade (UC11).
+export async function registrarConfronto(usuarioId: string, danoCausado: number): Promise<ResultadoAtaque> {
   const db = await getDbFases();
   let resultado!: ResultadoAtaque;
 
@@ -244,7 +267,8 @@ export async function atacarChefe(usuarioId: string): Promise<ResultadoAtaque> {
     const motivo = motivoBloqueio(prog, ctx);
     if (motivo) throw new Error(motivo);
 
-    const dano = calcularDano(ctx.forcaBase, ctx.bonusForca, ctx.maiorKm); // RN12
+    const limite = calcularDano(ctx.forcaBase, ctx.bonusForca, ctx.maiorKm); // RN12
+    const dano = Math.max(0, Math.min(Math.round(danoCausado), limite, prog.vida_atual_chefe));
     const vida = Math.max(0, prog.vida_atual_chefe - dano); // RN15
     const derrotado = vida <= 0;
 
@@ -255,8 +279,11 @@ export async function atacarChefe(usuarioId: string): Promise<ResultadoAtaque> {
     );
 
     let proximaFase: string | null = null;
+    let itemLendario: ItemCatalogo | null = null;
     if (derrotado) {
-      await concederBau(db, usuarioId, 'OURO'); // RF22
+      // RF22 (baú Ouro) + 10% de item lendário, uma única vez por chefe (D19)
+      const premio = await concederRecompensaChefe(db, usuarioId, fase.numero, ferramentasReais);
+      itemLendario = premio.itemLendario;
       const proxima = fasePorNumero(fase.numero + 1);
       if (proxima) {
         // RN13: cada nova fase começa com distância acumulada zero
@@ -274,6 +301,7 @@ export async function atacarChefe(usuarioId: string): Promise<ResultadoAtaque> {
       vidaMaxima: fase.chefe.vidaMaxima,
       derrotado,
       proximaFase,
+      itemLendario,
     };
   });
 
