@@ -121,3 +121,23 @@ test('9-10. mover entre Inventário e Baú não duplica, não perde e persiste',
   const depois = db.raw.prepare('SELECT id, item_id FROM inventario ORDER BY id').all();
   assert.deepEqual(depois, antes);
 });
+
+test('descartar converte em moedas pela raridade e bloqueia equipado/baú', async () => {
+  const { descartarItem } = await import('../src/db/regrasLoot.ts');
+  const { valorDescarte } = await import('../src/domain/recompensas.ts');
+  assert.deepEqual(['COMUM', 'INCOMUM', 'RARO', 'EPICO', 'LENDARIO'].map((r) => valorDescarte(r)), [2, 4, 6, 8, 10]);
+  const db = novoBanco();
+  const porRaridade = (r) => CATALOGO.find((i) => i.raridade === r).id;
+  const ins = db.raw.prepare(`INSERT INTO inventario (id, usuario_id, item_id, equipado, data_adquirido, local) VALUES (?, 'u1', ?, ?, 'x', ?)`);
+  ins.run('c', porRaridade('COMUM'), 0, 'INVENTARIO');
+  ins.run('l', porRaridade('LENDARIO'), 0, 'INVENTARIO');
+  ins.run('e', porRaridade('RARO'), 1, 'INVENTARIO');
+  ins.run('b', porRaridade('INCOMUM'), 0, 'BAU');
+  assert.equal((await descartarItem(db, 'u1', 'c')).moedas, 2);
+  assert.equal((await descartarItem(db, 'u1', 'l')).moedas, 10);
+  await assert.rejects(descartarItem(db, 'u1', 'e'), /Desequipe/);
+  await assert.rejects(descartarItem(db, 'u1', 'b'), /Retire/);
+  await assert.rejects(descartarItem(db, 'u1', 'c'), /não encontrado/); // não descarta duas vezes
+  assert.equal(saldo(db), 12);
+  assert.deepEqual(db.raw.prepare('SELECT id FROM inventario ORDER BY id').all().map((r) => r.id), ['b', 'e']);
+});

@@ -56,6 +56,7 @@ Tela Bloqueio `108:324`, `6:6392`.
 | D18 | Motor 2D | Não foi usado o `expo-2d-game-engine`: a cena é feita com Views do React Native (motor puro em `domain/idle.ts`), sem dependência nova e compatível com Expo Go | simplicidade/prazo |
 | D19 | **Loot e baú de armazenamento (pedido de 17/11)** | Monstro comum: moedas sempre (1/2/2/3/3 por fase) + 20% de baú (70% comum / 25% incomum / 5% raro / 0% lendário), **sem XP** (RF18). Chefe derrotado: baú Ouro (já existia) + 10% de item lendário extra, **uma vez por fase** (tabela `recompensas_chefe`). Baú de armazenamento = coluna `local` no inventário (só muda de lugar, nunca recria a linha); item equipado não pode ser guardado. Configuração central em `domain/recompensas.ts`. Sorteios com gerador criptográfico (`expo-crypto`) | pedido; diverge de RF18 (moedas só por distância) e RF23 (só comum/raro) — divergências aceitas pelo Wesley |
 | D20 | Raridade Incomum | Criada para o baú incomum entregar item incomum. 4 itens novos com ids 17–20; ids 1–16 preservados (inventário existente intacto) | D19 |
+| D21 | Slots e descarte (pedido de 17/11) | Inventário com silhueta do herói e 4 slots de equipamento (Capacete, Arma, Armadura, Botas), mochila em grade de slots (4 colunas, mínimo 16) e painel do item. Descartar = apaga o item e credita moedas: Comum 2, Incomum 4, Raro 6, **Épico 8 (não definido no pedido)**, Lendário 10. Equipado ou guardado no baú não pode ser descartado | pedido (melhoria) |
 | D10 | Fases | Usar os nomes do Mapa do Figma (Bosque de Hermes…) e manter as metas de distância do código; trava por nível do Figma não entra | RF20/RF21 |
 
 ## Correções feitas
@@ -93,3 +94,4 @@ Tela Bloqueio `108:324`, `6:6392`.
 | 16/11/2026 | idem (passos 1–6) | OK, 0 erros e 0 avisos |
 | 17/11/2026 | `npm test` (motor idle), `tsc`, `lint`, `expo export` | 6/6 testes OK, 0 erros |
 | 17/11/2026 | `npm test` (13: motor idle + loot com SQLite em memória), `tsc`, `lint`, `expo export` | 13/13 OK, 0 erros |
+| 17/11/2026 | correção do erro do React Compiler + slots/descarte: `npm test`, `tsc`, `lint`, `expo export` | 14/14 OK, 0 erros |

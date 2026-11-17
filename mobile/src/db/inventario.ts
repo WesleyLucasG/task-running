@@ -3,7 +3,7 @@ import { CATALOGO, Raridade, sortearRaridade, TipoBau, TipoItem } from '../domai
 import { escolherItem } from '../domain/recompensas';
 import { aleatorioSeguro } from './aleatorio';
 import { getDbLoja } from './loja';
-import { LocalItem, moverItem } from './regrasLoot';
+import { descartarItem, LocalItem, moverItem } from './regrasLoot';
 
 export type Bau = { id: string; tipo: TipoBau; criadoEm: string };
 
@@ -146,3 +146,9 @@ export async function moverItemDeLocal(usuarioId: string, registroId: string, de
   await moverItem(db, usuarioId, registroId, destino);
 }
 
+
+// Descartar item da mochila em troca de moedas (2/4/6/8/10 por raridade)
+export async function descartarItemDaMochila(usuarioId: string, registroId: string) {
+  const db = await getDbLoja();
+  return descartarItem(db, usuarioId, registroId);
+}

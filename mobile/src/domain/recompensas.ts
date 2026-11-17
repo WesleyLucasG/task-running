@@ -20,7 +20,13 @@ export const CONFIG_RECOMPENSAS = {
   ] as [RaridadeBauDrop, number][],
   /** Chance extra de item lendário ao derrotar DEFINITIVAMENTE um chefe. */
   chanceLendarioChefe: 0.1,
+  /** Moedas recebidas ao descartar um item (Épico não foi definido: 8, entre Raro e Lendário). */
+  valorDescarte: { COMUM: 2, INCOMUM: 4, RARO: 6, EPICO: 8, LENDARIO: 10 } as Record<Raridade, number>,
 };
+
+export function valorDescarte(raridade: Raridade, cfg = CONFIG_RECOMPENSAS): number {
+  return cfg.valorDescarte[raridade] ?? 0;
+}
 
 export type Aleatorio = () => number; // [0, 1)
 

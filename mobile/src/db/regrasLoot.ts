@@ -3,7 +3,13 @@
 // podem ser testadas no Node com SQLite em memória (ver testes/loot.test.mjs).
 import { CATALOGO } from '../domain/loja';
 import type { ItemCatalogo } from '../domain/loja';
-import { escolherItem, moedasPorMonstro, sortearBauMonstro, sortearLendarioChefe } from '../domain/recompensas';
+import {
+  escolherItem,
+  moedasPorMonstro,
+  sortearBauMonstro,
+  sortearLendarioChefe,
+  valorDescarte,
+} from '../domain/recompensas';
 import type { Aleatorio, RaridadeBauDrop } from '../domain/recompensas';
 
 // Subconjunto da API do expo-sqlite usado aqui
@@ -101,4 +107,39 @@ export async function moverItem(db: DbLike, usuarioId: string, registroId: strin
     registroId,
     usuarioId,
   ]);
+}
+
+// Descartar item da mochila: apaga o registro e credita moedas pela raridade, na mesma transação.
+// Item equipado ou guardado no baú não pode ser descartado (precisa desequipar / retirar antes).
+export async function descartarItem(
+  db: DbLike,
+  usuarioId: string,
+  registroId: string,
+): Promise<{ moedas: number; nome: string }> {
+  let resultado = { moedas: 0, nome: '' };
+  await db.withTransactionAsync(async () => {
+    const item = await db.getFirstAsync<{ equipado: number; local: LocalItem; raridade: string; nome: string }>(
+      `SELECT inv.equipado, inv.local, i.raridade, i.nome
+         FROM inventario inv JOIN itens i ON i.id = inv.item_id
+        WHERE inv.id = ? AND inv.usuario_id = ?`,
+      [registroId, usuarioId],
+    );
+    if (!item) throw new Error('Item não encontrado.');
+    if (item.equipado === 1) throw new Error('Desequipe o item antes de descartá-lo.');
+    if (item.local === 'BAU') throw new Error('Retire o item do baú antes de descartá-lo.');
+
+    const moedas = valorDescarte(item.raridade as Parameters<typeof valorDescarte>[0]);
+    const apagou = await db.runAsync(
+      `DELETE FROM inventario WHERE id = ? AND usuario_id = ? AND equipado = 0 AND local = 'INVENTARIO'`,
+      [registroId, usuarioId],
+    );
+    if (apagou.changes !== 1) throw new Error('Item não pôde ser descartado.');
+    await db.runAsync(`INSERT OR IGNORE INTO carteiras (usuario_id) VALUES (?)`, [usuarioId]);
+    await db.runAsync(`UPDATE carteiras SET saldo_moedas = saldo_moedas + ? WHERE usuario_id = ?`, [
+      moedas,
+      usuarioId,
+    ]);
+    resultado = { moedas, nome: item.nome };
+  });
+  return resultado;
 }
