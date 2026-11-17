@@ -87,3 +87,17 @@ export function sortearRaridade(tipo: TipoBau, aleatorio: () => number = Math.ra
   }
   return tabela[tabela.length - 1][0];
 }
+// Loja Mística (melhoria D3): preços por raridade, valores do protótipo Figma
+export const PRECO_RARIDADE: Record<Raridade, number> = { COMUM: 150, RARO: 450, EPICO: 1200, LENDARIO: 2500 };
+export const DESCONTO_OFERTA = 0.3;
+
+// Oferta do dia: um item do catálogo escolhido pela data (igual para o dia inteiro)
+export function ofertaDoDia(data: Date = new Date()): ItemCatalogo {
+  const semente = data.getFullYear() * 400 + data.getMonth() * 31 + data.getDate();
+  return CATALOGO[semente % CATALOGO.length];
+}
+
+export function precoItem(item: ItemCatalogo, data: Date = new Date()): number {
+  const base = PRECO_RARIDADE[item.raridade];
+  return ofertaDoDia(data).id === item.id ? Math.round(base * (1 - DESCONTO_OFERTA)) : base;
+}

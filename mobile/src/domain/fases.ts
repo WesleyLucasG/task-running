@@ -4,44 +4,56 @@ export type FaseCatalogo = {
   descricao: string;
   metaDistanciaMetros: number;
   chefe: { nome: string; vidaMaxima: number; emoji: string };
+  monstro: { nome: string; emoji: string }; // inimigo comum da esteira idle
+  cenario: { ceu: string; horizonte: string; chao: string };
 };
 
-// Nomes provisórios: serão ajustados com as telas do Figma
+// Nomes e descrições do "Mapa Mundi" do Figma (D10). Metas e vida dos chefes mantidas.
 export const FASES: FaseCatalogo[] = [
   {
     numero: 1,
-    nome: 'Trilha da Aurora',
-    descricao: 'Os primeiros passos da sua jornada, entre névoa e luz da manhã.',
+    nome: 'Bosque de Hermes',
+    descricao: 'Um local tranquilo onde novos heróis começam sua jornada.',
     metaDistanciaMetros: 2000,
-    chefe: { nome: 'Lobo da Neblina', vidaMaxima: 30, emoji: '🐺' },
+    chefe: { nome: 'Ciclope', vidaMaxima: 30, emoji: '👹' },
+    monstro: { nome: 'Javali', emoji: '🐗' },
+    cenario: { ceu: '#1E3A5F', horizonte: '#2F6B4F', chao: '#4D7C0F' },
   },
   {
     numero: 2,
-    nome: 'Floresta Sussurrante',
-    descricao: 'Árvores antigas escondem criaturas que testam a sua constância.',
+    nome: 'Montanhas de Prata',
+    descricao: 'Picos nevados guardados por harpias famintas.',
     metaDistanciaMetros: 4000,
-    chefe: { nome: 'Aranha Gigante', vidaMaxima: 70, emoji: '🕷️' },
+    chefe: { nome: 'Harpia Rainha', vidaMaxima: 70, emoji: '🦅' },
+    monstro: { nome: 'Morcego', emoji: '🦇' },
+    cenario: { ceu: '#334155', horizonte: '#94A3B8', chao: '#64748B' },
   },
   {
     numero: 3,
-    nome: 'Desfiladeiro de Pedra',
-    descricao: 'Um caminho estreito entre montanhas, guardado por gigantes.',
+    nome: 'Deserto de Hélio',
+    descricao: 'Areias escaldantes que testam a resistência de qualquer corredor.',
     metaDistanciaMetros: 6000,
-    chefe: { nome: 'Golem de Pedra', vidaMaxima: 120, emoji: '🗿' },
+    chefe: { nome: 'Minotauro', vidaMaxima: 120, emoji: '🐂' },
+    monstro: { nome: 'Escorpião', emoji: '🦂' },
+    cenario: { ceu: '#7C2D12', horizonte: '#C2410C', chao: '#CA8A04' },
   },
   {
     numero: 4,
-    nome: 'Deserto das Miragens',
-    descricao: 'Calor, areia e ilusões. Só quem tem fôlego atravessa.',
+    nome: 'Ruínas de Atenas',
+    descricao: 'Templos antigos repletos de sabedoria e fantasmas do passado.',
     metaDistanciaMetros: 8000,
-    chefe: { nome: 'Serpente das Dunas', vidaMaxima: 180, emoji: '🐍' },
+    chefe: { nome: 'Medusa', vidaMaxima: 180, emoji: '🐍' },
+    monstro: { nome: 'Esqueleto', emoji: '💀' },
+    cenario: { ceu: '#312E81', horizonte: '#6D28D9', chao: '#78716C' },
   },
   {
     numero: 5,
-    nome: 'Pico do Trovão',
-    descricao: 'O topo do mundo, onde as tempestades nascem.',
+    nome: 'Abismo de Poseidon',
+    descricao: 'Profundezas oceânicas onde a pressão é o menor dos seus problemas.',
     metaDistanciaMetros: 10000,
-    chefe: { nome: 'Dragão do Trovão', vidaMaxima: 250, emoji: '🐉' },
+    chefe: { nome: 'Hidra', vidaMaxima: 250, emoji: '🐉' },
+    monstro: { nome: 'Caranguejo', emoji: '🦀' },
+    cenario: { ceu: '#082F49', horizonte: '#0E7490', chao: '#155E75' },
   },
 ];
 

@@ -22,7 +22,7 @@ type Item = {
 // Ordem e rótulos idênticos ao Figma ("Menu Lateral")
 const ITENS: Item[] = [
   { rotulo: 'Meu Perfil', icone: 'person-outline', destino: '/perfil' },
-  { rotulo: 'Árvore de Atributos', icone: 'shield-outline', bloqueado: true },
+  { rotulo: 'Árvore de Atributos', icone: 'shield-outline', destino: '/atributos' },
   { rotulo: 'Loja de Itens', icone: 'bag-handle-outline', destino: '/loja' },
   { rotulo: 'Mapa do Mundo', icone: 'map-outline', destino: '/mapa' },
   { rotulo: 'Conquistas', icone: 'trophy-outline', bloqueado: true },

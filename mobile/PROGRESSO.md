@@ -50,6 +50,10 @@ Tela Bloqueio `108:324`, `6:6392`.
 | D12 | Textos do Onboarding 2/3 | Layout fiel; descrições ajustadas para não prometer mecânicas fora do escopo (combate em tempo real, armadura) | §2.4 |
 | D13 | Fluxo de entrada | Abertura → Onboarding I–III (1ª vez no aparelho) → Cadastro/Login → Permissões → Criação de Personagem (1ª vez da conta) → Home | ordem do canvas do Figma |
 | D14 | Cadastro | Campos do Figma (confirmar e-mail, altura opcional, aceite do Código de Honra); peso continua obrigatório | RF01 |
+| D15 | **Jogo idle (pedido do Wesley, 17/11)** | Esteira na Home (layout do Figma "Combate"): herói anda sozinho, luta por golpes, vida sobre as cabeças, números de dano, barra "Progresso da fase". Morreu → volta ao início com vida cheia. Fim da fase → chefe na mesma esteira, **respeitando o documento**: só destravado pela meta de distância (RF21) e com atividade recente/nova (UC11); dano total por confronto limitado pela RN12 (= barra "Energia Divina"); vida do chefe persistida (RN15); vitória dá baú e libera a próxima fase (RF22). Monstros comuns não dão moedas/XP (RF18 = só distância real) | pedido + RF18–RF22 |
+| D16 | Pontos de habilidade | 2 pontos por km concluído → Força (+2 dano), Vitalidade (+10 vida), Velocidade (+5% ataques). Pontos de Força entram na força base da RN12. Tela `/atributos` (item "Árvore de Atributos" do menu, agora liberado) | pedido (melhoria) |
+| D17 | Loja | Catálogo de 16 itens com preços do Figma (150/450/1200/2500), oferta do dia −30% com contagem até meia-noite, compra atômica (saldo + inventário) | D3 |
+| D18 | Motor 2D | Não foi usado o `expo-2d-game-engine`: a cena é feita com Views do React Native (motor puro em `domain/idle.ts`), sem dependência nova e compatível com Expo Go | simplicidade/prazo |
 | D10 | Fases | Usar os nomes do Mapa do Figma (Bosque de Hermes…) e manter as metas de distância do código; trava por nível do Figma não entra | RF20/RF21 |
 
 ## Correções feitas
@@ -71,10 +75,11 @@ Tela Bloqueio `108:324`, `6:6392`.
 - [ ] 9. Menu lateral (estrutura feita no passo 0)
 - [ ] 10. Perfil *(depende do Figma)*
 - [ ] 11. Corrida e Resumo *(depende do Figma)*
-- [ ] 12. Mapa Mundi
+- [x] **Jogo idle** (D15–D16): `domain/idle.ts` (motor puro + 6 testes), `components/jogo/Esteira.tsx`, `state/useEsteira.ts`, Home = Combate, `/atributos`
+- [ ] 12. Mapa Mundi (fases já renomeadas conforme o Figma)
 - [ ] 13. Inventário e Baús *(depende do Figma)*
-- [ ] 14. Loja
-- [ ] 15. Combate
+- [x] 14. Loja
+- [x] 15. Combate (virou a Home com a esteira)
 - [ ] 16. Integração com o backend (JWT, sincronização) + testes
 
 ## Verificações
@@ -83,3 +88,4 @@ Tela Bloqueio `108:324`, `6:6392`.
 |---|---|---|
 | 16/11/2026 | `tsc --noEmit`, `expo lint`, `expo export --platform android` (passo 0) | OK |
 | 16/11/2026 | idem (passos 1–6) | OK, 0 erros e 0 avisos |
+| 17/11/2026 | `npm test` (motor idle), `tsc`, `lint`, `expo export` | 6/6 testes OK, 0 erros |

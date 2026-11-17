@@ -67,6 +67,7 @@ function Rotas() {
         <Stack.Screen name="corrida" />
         <Stack.Screen name="hidratacao" />
         <Stack.Screen name="perfil" />
+        <Stack.Screen name="atributos" />
         <Stack.Screen name="historico" />
         <Stack.Screen name="atividade/[id]" />
         <Stack.Screen name="editar-perfil" />
