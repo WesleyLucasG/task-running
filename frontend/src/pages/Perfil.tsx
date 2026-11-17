@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, FormEvent } from 'react';
 import { toast } from 'sonner';
 import {
-  Sword, Save, Pencil, X, Bell, BellOff, Trash2, Loader2, AlertTriangle, Info,
-  Droplets, Coins, Star, Zap, Shield,
+  Save, Pencil, X, Bell, BellOff, Trash2, Loader2, AlertTriangle, Info,
+  Droplets, Coins, Star, Zap, Shield, Package,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,6 +30,8 @@ interface Carteira {
   nivel: number;
 }
 
+interface Avatar { id: number; nome: string; imagemUrl: string; equipado: boolean; adquirido: boolean; }
+
 function getTitle(nivel: number): string {
   if (nivel >= 20) return 'LENDÁRIO';
   if (nivel >= 10) return 'CORREDOR DAS SOMBRAS';
@@ -51,6 +53,7 @@ export default function PerfilPage() {
   const [perfil, setPerfil] = useState<PerfilData | null>(null);
   const [hidratacao, setHidratacao] = useState<Hidratacao | null>(null);
   const [carteira, setCarteira] = useState<Carteira | null>(null);
+  const [avatarEquipado, setAvatarEquipado] = useState<Avatar | null>(null);
   const [loadingPerfil, setLoadingPerfil] = useState(true);
   const [loadingHidratacao, setLoadingHidratacao] = useState(true);
   const [loadingCarteira, setLoadingCarteira] = useState(true);
@@ -93,8 +96,15 @@ export default function PerfilPage() {
   const fetchCarteira = useCallback(async () => {
     setLoadingCarteira(true);
     try {
-      const res = await api.get('/api/gamificacao/carteira');
-      setCarteira(res.data);
+      const [carteiraRes, lojaRes] = await Promise.allSettled([
+        api.get('/api/gamificacao/carteira'),
+        api.get('/api/gamificacao/loja'),
+      ]);
+      if (carteiraRes.status === 'fulfilled') setCarteira(carteiraRes.value.data);
+      if (lojaRes.status === 'fulfilled') {
+        const equipado = (lojaRes.value.data as Avatar[]).find((a) => a.equipado) ?? null;
+        setAvatarEquipado(equipado);
+      }
     } catch (err) {
       // non-fatal
     } finally {
@@ -182,11 +192,17 @@ export default function PerfilPage() {
           <div className="flex flex-col sm:flex-row sm:items-end gap-5">
             {/* Avatar */}
             <div className="relative shrink-0 self-start">
-              <div className="w-20 h-20 rounded-2xl bg-navy-700 border-2 border-brand-500/60 flex items-center justify-center shadow-xl shadow-orange-500/20">
+              <div className="w-20 h-20 rounded-2xl bg-navy-700 border-2 border-brand-500/60 overflow-hidden shadow-xl shadow-orange-500/20">
                 {loadingCarteira ? (
-                  <Loader2 size={28} className="text-brand-500/40 animate-spin" />
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Loader2 size={28} className="text-brand-500/40 animate-spin" />
+                  </div>
+                ) : avatarEquipado?.imagemUrl ? (
+                  <img src={avatarEquipado.imagemUrl} alt={avatarEquipado.nome} className="w-full h-full object-cover" />
                 ) : (
-                  <Sword size={32} className="text-brand-500" />
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Package size={32} className="text-brand-500/50" />
+                  </div>
                 )}
               </div>
               <div className="absolute -bottom-1.5 -right-1.5 bg-brand-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-lg leading-none shadow-md">

@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Droplets, Coins, Star, Plus, Loader2, Flame, Sword, Zap, ChevronRight } from 'lucide-react';
+import { Droplets, Coins, Star, Plus, Loader2, Flame, Zap, ChevronRight, Package } from 'lucide-react';
 import api, { getApiError } from '../services/api';
 
 interface Perfil { id: number; nome: string; email: string; cpf: string; peso: number; metaAguaMl: number; }
 interface Carteira { moedas: number; experienciaXp: number; nivel: number; }
 interface Hidratacao { metaDiariaMl: number; consumidoHojeMl: number; porcentagemConcluida: number; lembreteAtivo: boolean; }
+interface Avatar { id: number; nome: string; imagemUrl: string; equipado: boolean; adquirido: boolean; }
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
@@ -28,6 +29,7 @@ export default function Dashboard() {
   const [perfil, setPerfil] = useState<Perfil | null>(null);
   const [carteira, setCarteira] = useState<Carteira | null>(null);
   const [hidratacao, setHidratacao] = useState<Hidratacao | null>(null);
+  const [avatarEquipado, setAvatarEquipado] = useState<Avatar | null>(null);
   const [loading, setLoading] = useState(true);
   const [addingWater, setAddingWater] = useState(false);
   const [customMl, setCustomMl] = useState('');
@@ -38,14 +40,19 @@ export default function Dashboard() {
       api.get('/api/perfil'),
       api.get('/api/gamificacao/carteira'),
       api.get('/api/hidratacao'),
+      api.get('/api/gamificacao/loja'),
     ]);
-    const [p, c, h] = results;
+    const [p, c, h, l] = results;
     if (p.status === 'fulfilled') setPerfil(p.value.data);
     else toast.error(getApiError(p.reason));
     if (c.status === 'fulfilled') setCarteira(c.value.data);
     else toast.error(getApiError(c.reason));
     if (h.status === 'fulfilled') setHidratacao(h.value.data);
     else toast.error(getApiError(h.reason));
+    if (l.status === 'fulfilled') {
+      const equipado = (l.value.data as Avatar[]).find((a) => a.equipado) ?? null;
+      setAvatarEquipado(equipado);
+    }
     setLoading(false);
   }, []);
 
@@ -101,8 +108,14 @@ export default function Dashboard() {
           <div className="flex items-start gap-4">
             {/* Avatar */}
             <div className="relative shrink-0">
-              <div className="w-16 h-16 rounded-xl bg-navy-700 border-2 border-brand-500/60 flex items-center justify-center shadow-lg shadow-orange-500/20">
-                <Sword size={28} className="text-brand-500" />
+              <div className="w-16 h-16 rounded-xl bg-navy-700 border-2 border-brand-500/60 overflow-hidden shadow-lg shadow-orange-500/20">
+                {avatarEquipado?.imagemUrl ? (
+                  <img src={avatarEquipado.imagemUrl} alt={avatarEquipado.nome} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Package size={28} className="text-brand-500/50" />
+                  </div>
+                )}
               </div>
               <div className="absolute -bottom-1 -right-1 bg-brand-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none shadow-md">
                 {nivel}

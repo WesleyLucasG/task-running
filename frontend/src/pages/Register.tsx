@@ -1,7 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Sword, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import api, { getApiError } from '../services/api';
 
 export default function Register() {
@@ -57,8 +57,8 @@ export default function Register() {
         <div className="text-center mb-8">
           <div className="relative inline-block mb-4">
             <div className="absolute inset-0 bg-brand-500/30 rounded-2xl blur-xl" />
-            <div className="relative inline-flex items-center justify-center w-16 h-16 bg-brand-500 rounded-2xl shadow-lg shadow-orange-500/40">
-              <Sword size={30} className="text-white" />
+            <div className="relative w-24 h-24 rounded-2xl overflow-hidden shadow-lg shadow-orange-500/40 bg-white">
+              <img src="/logo.jpg" alt="Task Running" className="w-full h-full object-contain" />
             </div>
           </div>
           <h1 className="text-4xl font-bold tracking-widest uppercase text-white">

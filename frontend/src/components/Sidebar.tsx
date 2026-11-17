@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Activity, ShoppingBag, User, LogOut, Sword } from 'lucide-react';
+import { LayoutDashboard, Activity, ShoppingBag, User, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -25,8 +25,8 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="px-6 py-5 border-b border-navy-600">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-brand-500 rounded-lg flex items-center justify-center shadow-lg shadow-orange-500/20">
-            <Sword size={18} className="text-white" />
+          <div className="w-10 h-10 rounded-xl overflow-hidden bg-white shadow-lg shadow-orange-500/20 shrink-0">
+            <img src="/logo.jpg" alt="Task Running" className="w-full h-full object-contain" />
           </div>
           <div>
             <p className="text-white font-bold tracking-widest text-sm uppercase leading-none">
