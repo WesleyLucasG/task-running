@@ -12,16 +12,6 @@ spring:
     properties:
       hibernate:
         format_sql: false
-
-server:
-  forward-headers-strategy: framework  # HTTPS terminado no proxy da nuvem
-
-api:
-  security:
-    token:
-      secret: ${JWT_SECRET}
-
-spring:
   mail:
     host: ${MAIL_HOST}
     port: ${MAIL_PORT:587}
@@ -33,6 +23,14 @@ spring:
           auth: true
           starttls:
             enable: true
+
+server:
+  forward-headers-strategy: framework  # HTTPS terminado no proxy da nuvem
+
+api:
+  security:
+    token:
+      secret: ${JWT_SECRET}
 
 app:
   seguranca:
