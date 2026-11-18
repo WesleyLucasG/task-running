@@ -6,6 +6,8 @@ import { Estado, Inimigo, progressoDaVolta } from '../../domain/idle';
 import { cores, espaco, fontes } from '../../theme';
 import type { EfeitoLoot } from '../../state/useEsteira';
 import { AvatarPixel } from '../AvatarPixel';
+import { SpritePixel } from '../SpritePixel';
+import { Sprite, SPRITES_FASE } from '../../domain/sprites';
 import { BauPixel } from '../BauPixel';
 
 const JANELA = 30; // unidades do mundo visíveis na tela
@@ -32,6 +34,7 @@ export function Esteira({ estado, fase, avatar, vidaMaxHeroi, efeitos = [] }: Pr
   const deslocChao = -((estado.pos * ppu) % tile);
   const deslocMorro = -((estado.pos * ppu * 0.4) % 120);
   const pct = Math.round(progressoDaVolta(estado) * 100);
+  const sprites = SPRITES_FASE[fase.numero] ?? SPRITES_FASE[1];
 
   return (
     <View style={estilos.moldura}>
@@ -45,6 +48,15 @@ export function Esteira({ estado, fase, avatar, vidaMaxHeroi, efeitos = [] }: Pr
               key={i}
               style={[estilos.morro, { left: i * 120, backgroundColor: fase.cenario.horizonte }]}
             />
+          ))}
+        </View>
+
+        {/* Elementos do bioma (árvores, pinheiros, cactos, colunas, algas) em paralaxe */}
+        <View style={[estilos.camada, { left: -((estado.pos * ppu * 0.7) % 150) }]}>
+          {Array.from({ length: Math.ceil(largura / 150) + 2 }, (_, i) => (
+            <View key={i} style={{ position: 'absolute', left: i * 150 + 40, bottom: CHAO - 2 }}>
+              <SpritePixel sprite={sprites.cenario} tamanho={i % 2 ? 22 : 30} />
+            </View>
           ))}
         </View>
 
@@ -63,7 +75,7 @@ export function Esteira({ estado, fase, avatar, vidaMaxHeroi, efeitos = [] }: Pr
               key={i.id}
               inimigo={i}
               x={xDe(i.pos)}
-              emoji={i.chefe ? fase.chefe.emoji : fase.monstro.emoji}
+              sprite={i.chefe ? sprites.chefe : sprites.monstro}
               nome={i.chefe ? fase.chefe.nome : undefined}
               atingido={estado.textos.some((t) => t.alvo === i.id && estado.tempo - t.criadoEm < 150)}
             />
@@ -78,6 +90,8 @@ export function Esteira({ estado, fase, avatar, vidaMaxHeroi, efeitos = [] }: Pr
               cabelo={avatar.cabelo}
               corPele={avatar.corPele}
               corRoupa={avatar.corRoupa}
+              corCabelo={avatar.corCabelo}
+              detalheRoupa={avatar.detalheRoupa}
               tamanho={34}
             />
           </View>
@@ -156,17 +170,17 @@ export function Esteira({ estado, fase, avatar, vidaMaxHeroi, efeitos = [] }: Pr
 function Monstro({
   inimigo,
   x,
-  emoji,
+  sprite,
   nome,
   atingido,
 }: {
   inimigo: Inimigo;
   x: number;
-  emoji: string;
+  sprite: Sprite;
   nome?: string;
   atingido: boolean;
 }) {
-  const tamanho = inimigo.chefe ? 46 : 30;
+  const tamanho = inimigo.chefe ? 58 : 34;
   return (
     <View style={[estilos.entidade, { left: x - tamanho / 2 + (atingido ? 4 : 0), bottom: CHAO - 4 }]}>
       {nome && <Text style={estilos.nomeChefe}>{nome}</Text>}
@@ -176,7 +190,9 @@ function Monstro({
         cor="#EF4444"
         largura={inimigo.chefe ? 64 : 36}
       />
-      <Text style={{ fontSize: tamanho, opacity: atingido ? 0.6 : 1, transform: [{ scaleX: -1 }] }}>{emoji}</Text>
+      <View style={{ opacity: atingido ? 0.55 : 1 }}>
+        <SpritePixel sprite={sprite} tamanho={tamanho} />
+      </View>
     </View>
   );
 }

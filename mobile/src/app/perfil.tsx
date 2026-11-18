@@ -7,13 +7,13 @@ import { Botao } from '../components/Botao';
 import { Estatistica } from '../components/Estatistica';
 import { Tela } from '../components/Tela';
 import { atualizarAparencia, Avatar, obterJogador } from '../db/jogo';
-import { CABELOS, CORES_ROUPA, GENEROS, TONS_PELE } from '../domain/avatar';
+import { cabelosDoGenero, CORES_CABELO, CORES_ROUPA, DETALHES_ROUPA, GENEROS, TONS_PELE } from '../domain/avatar';
 import { multiplicadorAgilidade, xpParaProximoNivel } from '../domain/jogo';
 import { useAuth } from '../state/AuthContext';
 import { cores, espaco, fontes, raio } from '../theme';
 
 type Jogador = { avatar: Avatar; moedas: number };
-type Aparencia = Partial<Pick<Avatar, 'genero' | 'cabelo' | 'corPele' | 'corRoupa'>>;
+type Aparencia = Partial<Pick<Avatar, 'genero' | 'cabelo' | 'corPele' | 'corRoupa' | 'corCabelo' | 'detalheRoupa'>>;
 
 function Chips<T extends string>({
   rotulo,
@@ -116,6 +116,8 @@ export default function Perfil() {
           cabelo={a.cabelo}
           corPele={a.corPele}
           corRoupa={a.corRoupa}
+          corCabelo={a.corCabelo}
+          detalheRoupa={a.detalheRoupa}
           tamanho={140}
         />
         <Text style={estilos.nome}>{usuario?.nome}</Text>
@@ -144,13 +146,22 @@ export default function Perfil() {
           rotulo="Gênero"
           opcoes={GENEROS}
           valor={a.genero}
-          aoEscolher={(genero) => mudar({ genero })}
+          aoEscolher={(genero) => {
+            const lista = cabelosDoGenero(genero);
+            mudar({ genero, cabelo: lista.some((c) => c.valor === a.cabelo) ? a.cabelo : lista[0].valor });
+          }}
         />
         <Chips
           rotulo="Cabelo"
-          opcoes={CABELOS}
+          opcoes={cabelosDoGenero(a.genero)}
           valor={a.cabelo}
           aoEscolher={(cabelo) => mudar({ cabelo })}
+        />
+        <Paleta
+          rotulo="Cor do cabelo"
+          lista={CORES_CABELO}
+          valor={a.corCabelo}
+          aoEscolher={(corCabelo) => mudar({ corCabelo })}
         />
         <Paleta
           rotulo="Tom de pele"
@@ -163,6 +174,12 @@ export default function Perfil() {
           lista={CORES_ROUPA}
           valor={a.corRoupa}
           aoEscolher={(corRoupa) => mudar({ corRoupa })}
+        />
+        <Chips
+          rotulo="Detalhe da roupa"
+          opcoes={DETALHES_ROUPA}
+          valor={a.detalheRoupa}
+          aoEscolher={(detalheRoupa) => mudar({ detalheRoupa })}
         />
       </View>
 

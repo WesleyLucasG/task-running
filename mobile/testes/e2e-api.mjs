@@ -117,4 +117,15 @@ ok(outro.status === 401 || outro.status === 403, 'sem token válido não acessa 
 const ren = await chamar('/auth/refresh', { metodo: 'POST', corpo: { refreshToken: login.corpo.refreshToken } });
 ok(ren.status === 200, 'RNF07: renovação do token');
 
+// RPG no servidor: aparência e estado coerentes com a corrida sincronizada
+const ap = { genero: 'FEMININO', cabelo: 'COQUE', corCabelo: '#E3B862', corPele: '#8D5524', corRoupa: '#22C55E', detalheRoupa: 'FAIXA' };
+const salvo = await chamar('/api/jogo/aparencia', { metodo: 'PUT', token, corpo: ap });
+const relogin = await chamar('/auth/login', { metodo: 'POST', corpo: { cpf, senha: 'Senha@123' } });
+const lida = await chamar('/api/jogo/aparencia', { token: relogin.corpo.token });
+ok(salvo.status === 200 && JSON.stringify(lida.corpo) === JSON.stringify(ap), 'aparência salva no servidor e recuperada após novo login');
+const est = await chamar('/api/jogo/estado', { token: relogin.corpo.token });
+ok(est.corpo.carteira.moedas === carteira1.corpo.moedas, 'estado do jogo usa a MESMA carteira (sem economia paralela)');
+ok(Math.abs(est.corpo.fases[0].distanciaAcumuladaMetros - Math.min(fin.corpo.distanciaMetros, 2000)) < 0.01, 'distância da corrida entrou na fase 1 (RN13)');
+ok(est.corpo.fases[1].situacao === 'BLOQUEADA' && est.corpo.fases[4].chefeNome === 'Hidra', 'chefes das fases futuras visíveis e bloqueados');
+
 console.log(`\nE2E OK: ${passos} verificações.`);

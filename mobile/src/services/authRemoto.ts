@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { DadosCadastro, DadosPerfil, Usuario } from '../domain/auth';
 import { somenteDigitos, validarCpf, validarEmail, validarSenha } from '../domain/validacoes';
 import { api, apagarTokens, ErroApi, lerTokens, salvarTokens } from './api';
+import { limparCache } from './jogoRemoto';
 
 // Autenticação real com o backend Spring Boot (UC01, UC02, UC03, UC08).
 const CHAVE_USUARIO = 'tr:usuario-remoto'; // cópia do perfil para abrir o app sem internet
@@ -38,6 +39,7 @@ export async function entrar(cpf: string, senha: string, lembrar = true): Promis
     corpo: { cpf: somenteDigitos(cpf), senha },
   });
   await salvarTokens(tokens);
+  await limparCache(); // estado do jogo de outra conta não pode aparecer nesta
   await AsyncStorage.setItem(CHAVE_LEMBRAR, lembrar ? '1' : '0');
   return buscarPerfil();
 }
@@ -87,6 +89,7 @@ export async function sair(): Promise<void> {
     );
   }
   await apagarTokens();
+  await limparCache();
   await AsyncStorage.multiRemove([CHAVE_USUARIO, CHAVE_LEMBRAR]);
 }
 

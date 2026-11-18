@@ -1,3 +1,5 @@
+import { apiConfigurada } from '../services/api';
+import * as Remoto from '../services/jogoRemoto';
 import * as Crypto from 'expo-crypto';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { diaLocal } from '../domain/datas';
@@ -216,6 +218,7 @@ function motivoBloqueio(prog: LinhaProgresso, ctx: ContextoCombate): string | nu
 }
 
 export async function obterEstadoMapa(usuarioId: string): Promise<EstadoMapa> {
+  if (apiConfigurada()) return Remoto.obterEstadoMapa();
   const db = await getDbFases();
   await garantirAvatar(db, usuarioId);
   await garantirProgresso(db, usuarioId);
@@ -263,6 +266,7 @@ export function atacarChefe(usuarioId: string): Promise<ResultadoAtaque> {
 // Confronto na esteira idle: o herói causou `danoCausado` ao chefe. O valor é limitado
 // pela RN12, a vida restante é persistida (RN15) e o confronto consome a atividade (UC11).
 export async function registrarConfronto(usuarioId: string, danoCausado: number): Promise<ResultadoAtaque> {
+  if (apiConfigurada()) return Remoto.atacarChefe(danoCausado);
   const db = await getDbFases();
   let resultado!: ResultadoAtaque;
 

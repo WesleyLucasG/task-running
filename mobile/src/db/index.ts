@@ -66,6 +66,19 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
           FOREIGN KEY (atividade_id) REFERENCES atividades(id) ON DELETE CASCADE
         );
       `);
+      // Migração RF11: cor do cabelo e detalhe da roupa do avatar
+      const colunasAvatar = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(avatares)`);
+      if (!colunasAvatar.some((c) => c.name === 'cor_cabelo')) {
+        await db.execAsync(`ALTER TABLE avatares ADD COLUMN cor_cabelo TEXT`);
+      }
+      if (!colunasAvatar.some((c) => c.name === 'detalhe_roupa')) {
+        await db.execAsync(`ALTER TABLE avatares ADD COLUMN detalhe_roupa TEXT`);
+      }
+      // Migração RNF11: coordenadas criptografadas (AES-GCM) na coluna dados_cifrados
+      const colunasGps = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(pontos_gps)`);
+      if (!colunasGps.some((c) => c.name === 'dados_cifrados')) {
+        await db.execAsync(`ALTER TABLE pontos_gps ADD COLUMN dados_cifrados TEXT`);
+      }
       return db;
     })();
   }

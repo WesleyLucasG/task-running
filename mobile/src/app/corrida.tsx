@@ -18,6 +18,7 @@ import {
   TipoAtividade,
 } from '../db/atividades';
 import { api, apiConfigurada } from '../services/api';
+import { hermesEsquecer, hermesFalar } from '../state/hermes';
 import { concluirAtividadeComRecompensa } from '../db/jogo';
 import {
   calcularPace,
@@ -76,6 +77,18 @@ export default function Corrida() {
   const ultimoSinalLocal = useRef(0);
   const assinatura = useRef<Location.LocationSubscription | null>(null);
   const relogio = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Hermes avisa quando o sinal de GPS cai e quando volta (RF17)
+  useEffect(() => {
+    if (!ativa) return;
+    const id = atividadeId.current ?? 'corrida';
+    if (semSinal) {
+      hermesEsquecer(`gps-volta-${id}`);
+      hermesFalar(`gps-perdido-${id}`, 'Perdi seu sinal de GPS. A corrida continua ativa e retomo a contagem quando o sinal voltar.', 'mapa');
+    } else {
+      hermesEsquecer(`gps-perdido-${id}`);
+    }
+  }, [semSinal, ativa]);
 
   function pararSensores() {
     assinatura.current?.remove();
@@ -235,6 +248,7 @@ export default function Corrida() {
       setAtiva(true);
 
       await ligarSensores();
+      hermesFalar(`inicio-${atividadeId.current}`, 'Boa corrida! Vou contando cada passo — mesmo sem internet.', 'correndo');
     } catch (e) {
       pararSensores();
       setAtiva(false);

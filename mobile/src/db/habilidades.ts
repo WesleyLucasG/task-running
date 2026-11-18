@@ -1,3 +1,4 @@
+import { apiConfigurada } from '../services/api';
 import { pontosGanhos, Pontos } from '../domain/idle';
 import { getDbFases } from './fases';
 
@@ -6,6 +7,7 @@ export type EstadoHabilidades = Pontos & { ganhos: number; disponiveis: number; 
 
 // Pontos ganhos = 2 por km de atividades concluídas (D15). Disponíveis = ganhos - distribuídos.
 export async function obterHabilidades(usuarioId: string): Promise<EstadoHabilidades> {
+  if (apiConfigurada()) return { forca: 0, vitalidade: 0, velocidade: 0, ganhos: 0, disponiveis: 0, distanciaTotalMetros: 0 };
   const db = await getDbFases();
   await db.runAsync(`INSERT OR IGNORE INTO habilidades (usuario_id) VALUES (?)`, [usuarioId]);
   const h = await db.getFirstAsync<Pontos>(

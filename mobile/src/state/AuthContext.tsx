@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import * as Auth from '../domain/auth';
 import { quandoSessaoExpirar } from '../services/api';
+import { cancelarLembretes } from '../services/lembretes';
+import { hermesReiniciar } from './hermes';
 
 // Fluxo do Figma: Abertura → Onboarding (1ª vez no aparelho) → Cadastro/Login
 // → Permissões → Criação de Personagem (1ª vez da conta) → Home.
@@ -67,6 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     sair: async () => {
       await Auth.sair();
+      // Troca de conta no mesmo aparelho: lembretes e falas do usuário anterior não continuam
+      await cancelarLembretes().catch(() => {});
+      hermesReiniciar();
       setUsuario(null);
     },
     concluirIntro: async () => {

@@ -8,6 +8,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { Abertura } from '../components/Abertura';
+import { HermesAviso } from '../components/HermesAviso';
+import { hermesFalar } from '../state/hermes';
 import { sincronizarPendentes } from '../services/sincronizacao';
 import { AuthProvider, useAuth } from '../state/AuthContext';
 import { cores } from '../theme';
@@ -45,6 +47,14 @@ function Rotas() {
   // Figma "Abertura": barra "CARREGANDO MUNDO" uma vez por abertura do app
   const [aberturaOk, setAberturaOk] = useState(false);
   const concluirAbertura = useCallback(() => setAberturaOk(true), []);
+
+  // Saudação do Hermes ao entrar (uma vez por sessão)
+  const nomeUsuario = usuario?.nome;
+  useEffect(() => {
+    if (aberturaOk && nomeUsuario && configurado) {
+      hermesFalar('saudacao', `Saudações, ${nomeUsuario.split(' ')[0]}! Cada quilômetro real fortalece seu herói.`, 'acenando');
+    }
+  }, [aberturaOk, nomeUsuario, configurado]);
 
   if (!pronto) return null;
   if (!aberturaOk) return <Abertura aoConcluir={concluirAbertura} />;
@@ -86,6 +96,7 @@ export default function RootLayout() {
     <AuthProvider>
       <StatusBar style="light" />
       <Rotas />
+      <HermesAviso />
     </AuthProvider>
   );
 }

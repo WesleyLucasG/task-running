@@ -16,6 +16,7 @@ import {
 } from '../db/hidratacao';
 import { formatarDia } from '../domain/datas';
 import { api, apiConfigurada } from '../services/api';
+import { hermesFalar } from '../state/hermes';
 import { agendarLembretes, cancelarLembretes, testarLembrete } from '../services/lembretes';
 import { useAuth } from '../state/AuthContext';
 import { cores, espaco, fontes, raio } from '../theme';
@@ -63,13 +64,12 @@ export default function Hidratacao() {
     setSalvando(true);
     try {
       const r = await registrarConsumo(usuario.id, ml, meta);
-      // RF28: com backend configurado, o consumo também é gravado no servidor (que credita o XP da RN10)
-      if (apiConfigurada()) {
-        api('/api/hidratacao/registrar', { metodo: 'POST', corpo: { quantidadeMl: ml } }).catch(() => {});
-      }
       let msg = `+${ml} ml registrados · +${r.xp} XP`;
       if (r.subiuNivel) msg += ` · Nível ${r.nivelDepois}!`;
-      if (r.bauConcedido) msg += ' · Meta batida! Você ganhou um Baú Bronze.';
+      if (r.bauConcedido) {
+        msg += ' · Meta batida! Você ganhou um Baú Bronze.';
+        hermesFalar(`agua-${new Date().toDateString()}`, 'Meta de hidratação do dia concluída! Um Baú Bronze te espera no inventário.', 'acenando');
+      }
       setMensagem(msg);
       setCustom('');
       await carregar();

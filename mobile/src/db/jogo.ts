@@ -1,6 +1,9 @@
-import type { Cabelo, Genero } from '../domain/avatar';
+import { apiConfigurada } from '../services/api';
+import * as Remoto from '../services/jogoRemoto';
+import type { Cabelo, DetalheRoupa, Genero } from '../domain/avatar';
 import { aplicarXp, calcularRecompensa } from '../domain/jogo';
 import { getDb } from '.';
+import { finalizarAtividade } from './atividades';
 import type { Metricas } from './atividades';
 import { getDbFases, registrarDistanciaNaFase } from './fases';
 
@@ -15,6 +18,8 @@ export type Avatar = {
   cabelo: Cabelo;
   corPele: string;
   corRoupa: string;
+  corCabelo: string;
+  detalheRoupa: DetalheRoupa;
 };
 
 export type LinhaAvatar = {
@@ -28,6 +33,8 @@ export type LinhaAvatar = {
   cabelo: Cabelo;
   cor_pele: string;
   cor_roupa: string;
+  cor_cabelo: string | null;
+  detalhe_roupa: DetalheRoupa | null;
 };
 
 export function mapear(l: LinhaAvatar): Avatar {
@@ -42,6 +49,8 @@ export function mapear(l: LinhaAvatar): Avatar {
     cabelo: l.cabelo,
     corPele: l.cor_pele,
     corRoupa: l.cor_roupa,
+    corCabelo: l.cor_cabelo ?? '#3B2314',
+    detalheRoupa: l.detalhe_roupa ?? 'SIMPLES',
   };
 }
 
@@ -54,6 +63,7 @@ export async function garantirJogador(usuarioId: string): Promise<void> {
 }
 
 export async function obterJogador(usuarioId: string): Promise<{ avatar: Avatar; moedas: number }> {
+  if (apiConfigurada()) return Remoto.obterJogador();
   await garantirJogador(usuarioId);
   const db = await getDb();
   const a = await db.getFirstAsync<LinhaAvatar>(`SELECT * FROM avatares WHERE usuario_id = ?`, [
@@ -69,14 +79,20 @@ export async function obterJogador(usuarioId: string): Promise<{ avatar: Avatar;
 // RF11
 export async function atualizarAparencia(
   usuarioId: string,
-  parcial: Partial<Pick<Avatar, 'genero' | 'cabelo' | 'corPele' | 'corRoupa'>>,
+  parcial: Partial<Pick<Avatar, 'genero' | 'cabelo' | 'corPele' | 'corRoupa' | 'corCabelo' | 'detalheRoupa'>>,
 ): Promise<void> {
+  if (apiConfigurada()) {
+    const atual = (await Remoto.obterJogador()).avatar;
+    const a = { ...atual, ...parcial };
+    return Remoto.salvarAparencia({ genero: a.genero, cabelo: a.cabelo, corCabelo: a.corCabelo, corPele: a.corPele, corRoupa: a.corRoupa, detalheRoupa: a.detalheRoupa });
+  }
   const { avatar } = await obterJogador(usuarioId);
   const novo = { ...avatar, ...parcial };
   const db = await getDb();
   await db.runAsync(
-    `UPDATE avatares SET genero = ?, cabelo = ?, cor_pele = ?, cor_roupa = ? WHERE usuario_id = ?`,
-    [novo.genero, novo.cabelo, novo.corPele, novo.corRoupa, usuarioId],
+    `UPDATE avatares SET genero = ?, cabelo = ?, cor_pele = ?, cor_roupa = ?, cor_cabelo = ?, detalhe_roupa = ?
+      WHERE usuario_id = ?`,
+    [novo.genero, novo.cabelo, novo.corPele, novo.corRoupa, novo.corCabelo, novo.detalheRoupa, usuarioId],
   );
 }
 
@@ -94,6 +110,11 @@ export async function concluirAtividadeComRecompensa(
   usuarioId: string,
   m: Metricas,
 ): Promise<ResultadoRecompensa> {
+  // Com backend: o app só fecha a atividade; XP, moedas e fase são calculados pelo servidor na sincronização
+  if (apiConfigurada()) {
+    await finalizarAtividade(atividadeId, m);
+    return { xp: 0, moedas: 0, multiplicador: 1, nivelAntes: 0, nivelDepois: 0 };
+  }
   await garantirJogador(usuarioId);
   await getDbFases(); // garante que a tabela progresso_fase existe
   const db = await getDb();
@@ -171,6 +192,7 @@ export async function concluirAtividadeComRecompensa(
 }
 
 export async function buscarRecompensa(atividadeId: string): Promise<ResultadoRecompensa | null> {
+  if (apiConfigurada()) return null; // a recompensa oficial fica na carteira do servidor
   const db = await getDb();
   const l = await db.getFirstAsync<{
     xp: number;

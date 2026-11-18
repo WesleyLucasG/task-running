@@ -10,6 +10,7 @@ import {
   textoCanonico,
   umPontoPorSegundo,
 } from '../domain/sincronizacao';
+import { hermesFalar } from '../state/hermes';
 import { api, apiConfigurada, ErroApi } from './api';
 
 // UC09 / RN04 / RN05 / RN16 — sincronização real com o backend.
@@ -23,6 +24,8 @@ type EstadoServidor = { existe: boolean; status: string | null; quantidadePontos
 export type ResultadoSync = { enviadas: number; parciais: number; falhas: number; aguardando: number };
 
 let emAndamento = false;
+// true quando a API não tem o endpoint de delta (ex.: versão antiga em produção)
+let servidorSemDelta = false;
 
 const sha256 = (texto: string) => Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, texto);
 
@@ -72,12 +75,28 @@ async function sincronizarUma(atividade: Atividade): Promise<Saida> {
 
     // Envia o delta em lotes enquanto a atividade estiver em andamento
     if (atividade.status === 'EM_ANDAMENTO') {
+      // Servidor sem envio parcial (versão antiga da API): nada é enviado agora;
+      // a corrida inteira vai na finalização, pelo endpoint que toda versão possui.
+      if (servidorSemDelta) return 'PARCIAL';
       while (enviados < pontos.length) {
         const lote = pontos.slice(enviados, enviados + LOTE_MAXIMO_PONTOS);
-        const estado = await api<EstadoServidor>('/api/atividades/sincronizacao/pontos', {
-          metodo: 'POST',
-          corpo: { identificadorLocal: atividade.id, tipoAtividade: atividade.tipo, dataInicio, pontos: lote.map(pontoParaApi) },
-        });
+        let estado: EstadoServidor;
+        try {
+          estado = await api<EstadoServidor>('/api/atividades/sincronizacao/pontos', {
+            metodo: 'POST',
+            corpo: { identificadorLocal: atividade.id, tipoAtividade: atividade.tipo, dataInicio, pontos: lote.map(pontoParaApi) },
+          });
+        } catch (e) {
+          if (e instanceof ErroApi && (e.status === 404 || e.status === 405)) {
+            servidorSemDelta = true;
+            await atualizarRegistro(atividade.id, {
+              estado: 'PENDENTE',
+              ultimoErro: 'Servidor sem envio parcial: a corrida será enviada inteira ao finalizar.',
+            });
+            return 'PARCIAL';
+          }
+          throw e;
+        }
         enviados = await conferir(atividade.id, pontos, enviados + lote.length, estado);
       }
       await atualizarRegistro(atividade.id, { estado: 'PENDENTE', tentativas: 0, proximaTentativaEm: 0, ultimoErro: null });
@@ -100,6 +119,7 @@ async function sincronizarUma(atividade: Atividade): Promise<Saida> {
     });
     await marcarSincronizada(atividade.id); // só depois da confirmação do servidor
     await encerrarRegistro(atividade.id); // RN16: fim do ciclo de vida do registro
+    hermesFalar(`sync-${atividade.id}`, 'Corrida confirmada pelo servidor! Seu XP e suas moedas foram creditados.', 'cajado');
     return 'CONCLUIDA';
   } catch (e) {
     if (e instanceof ErroApi && e.semConexao) {

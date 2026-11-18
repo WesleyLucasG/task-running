@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Href, router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AvatarPixel } from '../../components/AvatarPixel';
 import { CabecalhoJogo } from '../../components/CabecalhoJogo';
@@ -10,7 +10,9 @@ import { RevelacaoItem } from '../../components/RevelacaoItem';
 import { abrirBau } from '../../db/inventario';
 import { ROTULO_BAU } from '../../domain/loja';
 import { avisarJogadorAlterado } from '../../state/sinais';
+import { EXTRAS_FORA_DO_MVP } from '../../config/escopo';
 import { BauEncontrado, useEsteira } from '../../state/useEsteira';
+import { hermesFalar } from '../../state/hermes';
 import { useJogador } from '../../state/useJogador';
 import { cores, espaco, fontes } from '../../theme';
 
@@ -21,6 +23,16 @@ export default function Home() {
   const { info, estado, log, efeitos, bausEncontrados, removerBau, lendario, fecharLendario } = useEsteira();
   const [abrindo, setAbrindo] = useState<BauEncontrado | null>(null);
   const ultimoBau = bausEncontrados[bausEncontrados.length - 1];
+
+  // Hermes convida para o desafio quando as regras liberam o chefe (RN11)
+  const chefeLiberado = !!info?.contexto.chefe.podeEnfrentar;
+  const nomeChefe = info?.fase?.chefe.nome;
+  const numeroFase = info?.fase?.numero;
+  useEffect(() => {
+    if (chefeLiberado && nomeChefe) {
+      hermesFalar(`chefe-${numeroFase}`, `${nomeChefe} foi liberado! Seu herói vai enfrentá-lo no fim da fase.`, 'cajado');
+    }
+  }, [chefeLiberado, nomeChefe, numeroFase]);
 
   const pronto = !!(info && estado && avatar && info.fase);
   const heroi = info?.contexto.heroi;
@@ -123,14 +135,18 @@ export default function Home() {
             fundo={cores.laranja}
             destino="/corrida"
           />
+          {EXTRAS_FORA_DO_MVP ? (
           <Acao
-            icone="flame-outline"
-            titulo="ATRIBUTOS"
-            subtitulo={`${info?.pontosDisponiveis ?? 0} pontos livres`}
-            fundo={cores.dourado}
-            destino="/atributos"
-            alerta={(info?.pontosDisponiveis ?? 0) > 0}
-          />
+              icone="flame-outline"
+              titulo="ATRIBUTOS"
+              subtitulo={`${info?.pontosDisponiveis ?? 0} pontos livres`}
+              fundo={cores.dourado}
+              destino="/atributos"
+              alerta={(info?.pontosDisponiveis ?? 0) > 0}
+            />
+          ) : (
+            <Acao icone="briefcase-outline" titulo="INVENTÁRIO" subtitulo="Baús e equipamentos" destino="/inventario" />
+          )}
           <Acao icone="water-outline" titulo="HIDRATAÇÃO" subtitulo="Meta diária" destino="/hidratacao" />
           <Acao icone="time-outline" titulo="HISTÓRICO" subtitulo="Suas corridas" destino="/historico" />
         </View>

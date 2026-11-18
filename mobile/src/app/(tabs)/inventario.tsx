@@ -19,6 +19,7 @@ import {
 } from '../../db/inventario';
 import { COR_RARIDADE, RARIDADES, ROTULO_BAU, ROTULO_RARIDADE, ROTULO_TIPO, TIPOS_ITEM, TipoItem } from '../../domain/loja';
 import { valorDescarte } from '../../domain/recompensas';
+import { apiConfigurada } from '../../services/api';
 import { avisarJogadorAlterado } from '../../state/sinais';
 import { useJogador } from '../../state/useJogador';
 import { cores, espaco, fontes } from '../../theme';
@@ -120,7 +121,10 @@ export default function Inventario() {
 
       <View style={estilos.abas}>
         <Guia rotulo={`INVENTÁRIO (${mochila.length + equipados.length})`} ativa={aba === 'INVENTARIO'} onPress={() => setAba('INVENTARIO')} />
-        <Guia rotulo={`BAÚ (${guardados.length})`} ativa={aba === 'BAU'} onPress={() => setAba('BAU')} />
+        {/* Baú de armazenamento e descarte só existem no modo local (não há suporte no servidor) */}
+        {!apiConfigurada() && (
+          <Guia rotulo={`BAÚ (${guardados.length})`} ativa={aba === 'BAU'} onPress={() => setAba('BAU')} />
+        )}
       </View>
 
       <ScrollView contentContainerStyle={estilos.conteudo}>
@@ -231,20 +235,22 @@ export default function Inventario() {
                     carregando={ocupado}
                     onPress={() => executar(() => alternarEquipado(uid, selecionado.item.id))}
                   />
-                  <View style={estilos.linhaBotoes}>
-                    <Botao
-                      titulo="GUARDAR NO BAÚ"
-                      variante="escuro"
-                      estilo={{ flex: 1 }}
-                      onPress={() => executar(() => moverItemDeLocal(uid, selecionado.item.id, 'BAU'))}
-                    />
-                    <Botao
-                      titulo={`DESCARTAR +${valorDescarte(selecionado.item.raridade)}`}
-                      variante="contorno"
-                      estilo={{ flex: 1 }}
-                      onPress={() => descartar(selecionado.item)}
-                    />
-                  </View>
+                  {!apiConfigurada() && (
+                    <View style={estilos.linhaBotoes}>
+                      <Botao
+                        titulo="GUARDAR NO BAÚ"
+                        variante="escuro"
+                        estilo={{ flex: 1 }}
+                        onPress={() => executar(() => moverItemDeLocal(uid, selecionado.item.id, 'BAU'))}
+                      />
+                      <Botao
+                        titulo={`DESCARTAR +${valorDescarte(selecionado.item.raridade)}`}
+                        variante="contorno"
+                        estilo={{ flex: 1 }}
+                        onPress={() => descartar(selecionado.item)}
+                      />
+                    </View>
+                  )}
                 </>
               )}
               {selecionado.origem === 'BAU' && (
