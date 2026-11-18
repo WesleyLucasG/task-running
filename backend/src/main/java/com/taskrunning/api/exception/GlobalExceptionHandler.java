@@ -14,6 +14,20 @@ import java.util.List;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ErrorResponseDTO> handleConflict(ConflictException ex, HttpServletRequest request) {
+        ErrorResponseDTO error = new ErrorResponseDTO(LocalDateTime.now(), HttpStatus.CONFLICT.value(),
+                "Conflito", ex.getMessage(), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    @ExceptionHandler(AutenticacaoException.class)
+    public ResponseEntity<ErrorResponseDTO> handleAutenticacao(AutenticacaoException ex, HttpServletRequest request) {
+        ErrorResponseDTO error = new ErrorResponseDTO(LocalDateTime.now(), HttpStatus.UNAUTHORIZED.value(),
+                "Não autorizado", ex.getMessage(), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponseDTO> handleResourceNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
         ErrorResponseDTO error = new ErrorResponseDTO(

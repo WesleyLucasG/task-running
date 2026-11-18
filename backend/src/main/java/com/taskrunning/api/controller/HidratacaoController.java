@@ -33,6 +33,13 @@ public class HidratacaoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(statusAtualizado);
     }
 
+    @GetMapping("/historico")
+    public ResponseEntity<java.util.List<com.taskrunning.api.dto.response.HistoricoHidratacaoDTO>> historico(
+            @AuthenticationPrincipal Usuario usuario,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "14") int dias) {
+        return ResponseEntity.ok(hidratacaoService.historico(usuario.getCpf(), dias));
+    }
+
     @PatchMapping("/lembrete")
     public ResponseEntity<Void> alterarStatusLembrete(
             @AuthenticationPrincipal Usuario usuario,

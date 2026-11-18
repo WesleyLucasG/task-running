@@ -30,6 +30,10 @@ class UsuarioServiceTest {
     @Mock
     private ConfiguracaoHidratacaoRepository configuracaoHidratacaoRepository;
 
+    @org.mockito.Spy
+    private com.taskrunning.api.security.CpfCriptografia cpfCriptografia =
+            new com.taskrunning.api.security.CpfCriptografia("chave-de-teste");
+
     @InjectMocks
     private UsuarioService usuarioService;
 
@@ -56,7 +60,8 @@ class UsuarioServiceTest {
         assertNotNull(perfil);
         assertEquals("Corredor Sentinela", perfil.nome());
         assertEquals("runner@taskrunning.com", perfil.email());
-        assertEquals("12345678900", perfil.cpf());
+        // RNF06/RNF20: o perfil devolve o CPF mascarado, nunca o número completo
+        assertEquals("***.***.***-00", perfil.cpf());
     }
 
     @Test
@@ -68,7 +73,8 @@ class UsuarioServiceTest {
             usuarioService.obterPerfil("00000000000");
         });
 
-        assertTrue(exception.getMessage().contains("00000000000"));
+        // RNF20: a mensagem de erro não pode expor o CPF
+        assertFalse(exception.getMessage().contains("00000000000"));
     }
 
     @Test

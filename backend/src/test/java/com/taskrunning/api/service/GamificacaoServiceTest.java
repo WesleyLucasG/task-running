@@ -67,14 +67,14 @@ class GamificacaoServiceTest {
     @Test
     @DisplayName("Deve lancar excecao quando o usuario ja possuir o avatar no inventario")
     void deveLancarExcecaoQuandoAvatarJaFoiAdquirido() {
-        when(usuarioRepository.findByEmail(usuario.getEmail())).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByCpfAndAtivoTrue(usuario.getCpf())).thenReturn(Optional.of(usuario));
         when(carteiraRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.of(carteira));
         when(avatarRepository.findById(avatarLendario.getId())).thenReturn(Optional.of(avatarLendario));
         when(inventarioRepository.findByUsuarioIdAndAvatarId(usuario.getId(), avatarLendario.getId()))
                 .thenReturn(Optional.of(new Inventario()));
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            gamificacaoService.comprarAvatar(usuario.getEmail(), avatarLendario.getId());
+            gamificacaoService.comprarAvatar(usuario.getCpf(), avatarLendario.getId());
         });
 
         assertEquals("Você já possui este avatar em seu inventário.", exception.getMessage());
@@ -84,14 +84,14 @@ class GamificacaoServiceTest {
     @Test
     @DisplayName("Deve lancar excecao e nao deduzir moedas quando o saldo for insuficiente")
     void deveLancarExcecaoQuandoSaldoForInsuficiente() {
-        when(usuarioRepository.findByEmail(usuario.getEmail())).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByCpfAndAtivoTrue(usuario.getCpf())).thenReturn(Optional.of(usuario));
         when(carteiraRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.of(carteira));
         when(avatarRepository.findById(avatarLendario.getId())).thenReturn(Optional.of(avatarLendario));
         when(inventarioRepository.findByUsuarioIdAndAvatarId(usuario.getId(), avatarLendario.getId()))
                 .thenReturn(Optional.empty());
 
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-            gamificacaoService.comprarAvatar(usuario.getEmail(), avatarLendario.getId());
+            gamificacaoService.comprarAvatar(usuario.getCpf(), avatarLendario.getId());
         });
 
         assertEquals("Saldo insuficiente de moedas para comprar este avatar.", exception.getMessage());
@@ -104,13 +104,13 @@ class GamificacaoServiceTest {
     void deveComprarAvatarComSucessoQuandoSaldoForSuficiente() {
         carteira.setMoedas(150);
 
-        when(usuarioRepository.findByEmail(usuario.getEmail())).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByCpfAndAtivoTrue(usuario.getCpf())).thenReturn(Optional.of(usuario));
         when(carteiraRepository.findByUsuarioId(usuario.getId())).thenReturn(Optional.of(carteira));
         when(avatarRepository.findById(avatarLendario.getId())).thenReturn(Optional.of(avatarLendario));
         when(inventarioRepository.findByUsuarioIdAndAvatarId(usuario.getId(), avatarLendario.getId()))
                 .thenReturn(Optional.empty());
 
-        CarteiraResponseDTO resultado = gamificacaoService.comprarAvatar(usuario.getEmail(), avatarLendario.getId());
+        CarteiraResponseDTO resultado = gamificacaoService.comprarAvatar(usuario.getCpf(), avatarLendario.getId());
 
         assertNotNull(resultado);
         assertEquals(50, carteira.getMoedas());
@@ -128,13 +128,13 @@ class GamificacaoServiceTest {
         Inventario itemAntigo = new Inventario();
         itemAntigo.setEquipado(true);
 
-        when(usuarioRepository.findByEmail(usuario.getEmail())).thenReturn(Optional.of(usuario));
+        when(usuarioRepository.findByCpfAndAtivoTrue(usuario.getCpf())).thenReturn(Optional.of(usuario));
         when(inventarioRepository.findByUsuarioIdAndAvatarId(usuario.getId(), avatarLendario.getId()))
                 .thenReturn(Optional.of(itemNovo));
         when(inventarioRepository.findByUsuarioIdAndEquipadoTrue(usuario.getId()))
                 .thenReturn(Optional.of(itemAntigo));
 
-        assertDoesNotThrow(() -> gamificacaoService.equiparAvatar(usuario.getEmail(), avatarLendario.getId()));
+        assertDoesNotThrow(() -> gamificacaoService.equiparAvatar(usuario.getCpf(), avatarLendario.getId()));
 
         assertFalse(itemAntigo.getEquipado());
         assertTrue(itemNovo.getEquipado());

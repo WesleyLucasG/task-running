@@ -6,147 +6,209 @@ import com.taskrunning.api.dto.request.LoginDTO;
 import com.taskrunning.api.dto.response.TokenResponseDTO;
 import com.taskrunning.api.entity.ConfiguracaoHidratacao;
 import com.taskrunning.api.entity.PasswordResetToken;
+import com.taskrunning.api.entity.RefreshToken;
 import com.taskrunning.api.entity.Usuario;
+import com.taskrunning.api.exception.AutenticacaoException;
 import com.taskrunning.api.exception.BusinessRuleException;
+import com.taskrunning.api.exception.ConflictException;
 import com.taskrunning.api.repository.ConfiguracaoHidratacaoRepository;
 import com.taskrunning.api.repository.PasswordResetTokenRepository;
+import com.taskrunning.api.repository.RefreshTokenRepository;
 import com.taskrunning.api.repository.UsuarioRepository;
+import com.taskrunning.api.security.CpfCriptografia;
 import com.taskrunning.api.security.TokenService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
 
-    @Mock
-    private UsuarioRepository usuarioRepository;
+    private static final String CPF_VALIDO = "529.982.247-25";
+    private static final String CPF_DIGITOS = "52998224725";
 
-    @Mock
-    private PasswordResetTokenRepository passwordResetTokenRepository;
-
-    @Mock
-    private PasswordEncoder passwordEncoder;
-
-    @Mock
-    private TokenService tokenService;
-
-    @Mock
-    private ConfiguracaoHidratacaoRepository configuracaoHidratacaoRepository;
+    @Mock private UsuarioRepository usuarioRepository;
+    @Mock private PasswordResetTokenRepository passwordResetTokenRepository;
+    @Mock private PasswordEncoder passwordEncoder;
+    @Mock private TokenService tokenService;
+    @Mock private ConfiguracaoHidratacaoRepository configuracaoHidratacaoRepository;
+    @Mock private RefreshTokenRepository refreshTokenRepository;
+    @Spy private CpfCriptografia cpfCriptografia = new CpfCriptografia("chave-de-teste");
 
     @InjectMocks
     private AuthService authService;
 
     private CadastroUsuarioDTO cadastroDTO;
-    private LoginDTO loginDTO;
     private Usuario usuario;
 
     @BeforeEach
     void setup() {
-        cadastroDTO = new CadastroUsuarioDTO(
-                "Kilo",
-                "runner@taskrunning.com",
-                "senha123",
-                "12345678900",
-                70.00
-        );
-
-        // Atualizado para receber CPF no primeiro parametro
-        loginDTO = new LoginDTO(
-                "12345678900",
-                "senha123"
-        );
-
+        cadastroDTO = new CadastroUsuarioDTO("Kilo", "runner@taskrunning.com", "senha123", CPF_VALIDO, 70.00);
         usuario = new Usuario();
         usuario.setId(1L);
-        usuario.setCpf("12345678900");
+        usuario.setCpf(cpfCriptografia.criptografar(CPF_DIGITOS));
+        usuario.setCpfHash(cpfCriptografia.hash(CPF_DIGITOS));
         usuario.setEmail("runner@taskrunning.com");
         usuario.setSenha("senhaCriptografada");
         usuario.setAtivo(true);
     }
 
     @Test
-    @DisplayName("Deve lancar BusinessRuleException quando CPF ja estiver cadastrado entre usuarios ativos")
+    @DisplayName("RF02: cadastro rejeita CPF com dígitos verificadores inválidos")
+    void deveRejeitarCpfInvalido() {
+        var dto = new CadastroUsuarioDTO("Kilo", "a@b.com", "senha123", "12345678900", 70.0);
+        assertThrows(BusinessRuleException.class, () -> authService.cadastrar(dto));
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("RF03: CPF já cadastrado retorna conflito e nada é gravado")
     void deveLancarExcecaoQuandoCpfJaCadastrado() {
-        when(usuarioRepository.existsByCpfAndAtivoTrue(cadastroDTO.cpf())).thenReturn(true);
-
-        BusinessRuleException exception = assertThrows(BusinessRuleException.class, () -> {
-            authService.cadastrar(cadastroDTO);
-        });
-
-        assertEquals("CPF já cadastrado no sistema.", exception.getMessage());
+        when(usuarioRepository.existsByCpfHashAndAtivoTrue(cpfCriptografia.hash(CPF_VALIDO))).thenReturn(true);
+        ConflictException e = assertThrows(ConflictException.class, () -> authService.cadastrar(cadastroDTO));
+        assertEquals("CPF já cadastrado no sistema.", e.getMessage());
         verify(usuarioRepository, never()).save(any());
         verify(configuracaoHidratacaoRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("Deve cadastrar usuario com e-mail preenchido e criar configuracao de hidratacao com sucesso")
-    void deveCadastrarUsuarioComSucesso() {
-        when(usuarioRepository.existsByCpfAndAtivoTrue(cadastroDTO.cpf())).thenReturn(false);
+    @DisplayName("RNF06: cadastro grava o CPF criptografado e o índice cego, nunca em texto puro")
+    void deveCadastrarComCpfCriptografado() {
         when(passwordEncoder.encode("senha123")).thenReturn("senhaCriptografada");
-        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(i -> i.getArgument(0));
 
-        assertDoesNotThrow(() -> authService.cadastrar(cadastroDTO));
+        authService.cadastrar(cadastroDTO);
 
-        verify(usuarioRepository, times(1)).save(any(Usuario.class));
-        verify(configuracaoHidratacaoRepository, times(1)).save(any(ConfiguracaoHidratacao.class));
+        ArgumentCaptor<Usuario> captor = ArgumentCaptor.forClass(Usuario.class);
+        verify(usuarioRepository).save(captor.capture());
+        Usuario salvo = captor.getValue();
+        assertTrue(CpfCriptografia.estaCriptografado(salvo.getCpf()));
+        assertFalse(salvo.getCpf().contains(CPF_DIGITOS));
+        assertEquals(cpfCriptografia.hash(CPF_DIGITOS), salvo.getCpfHash());
+        assertEquals(CPF_DIGITOS, cpfCriptografia.descriptografar(salvo.getCpf()));
+        verify(configuracaoHidratacaoRepository).save(any(ConfiguracaoHidratacao.class));
     }
 
     @Test
-    @DisplayName("Deve cadastrar usuario sem e-mail (opcional) com sucesso")
-    void deveCadastrarUsuarioSemEmailComSucesso() {
-        CadastroUsuarioDTO dtoSemEmail = new CadastroUsuarioDTO(
-                "Kilo",
-                null,
-                "senha123",
-                "12345678900",
-                70.00
-        );
-
-        when(usuarioRepository.existsByCpfAndAtivoTrue(dtoSemEmail.cpf())).thenReturn(false);
-        when(passwordEncoder.encode("senha123")).thenReturn("senhaCriptografada");
-        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        assertDoesNotThrow(() -> authService.cadastrar(dtoSemEmail));
-
-        verify(usuarioRepository, times(1)).save(any(Usuario.class));
-        verify(configuracaoHidratacaoRepository, times(1)).save(any(ConfiguracaoHidratacao.class));
-    }
-
-    @Test
-    @DisplayName("Deve autenticar usuario ativo via CPF e retornar token JWT com sucesso")
-    void deveAutenticarEGerarTokenComSucesso() {
-        // Atualizado para buscar por CPF e ativo = true
-        when(usuarioRepository.findByCpfAndAtivoTrue(loginDTO.cpf())).thenReturn(Optional.of(usuario));
-        when(passwordEncoder.matches(loginDTO.senha(), usuario.getSenha())).thenReturn(true);
+    @DisplayName("Login por CPF com máscara gera access token de 24h e refresh token")
+    void deveAutenticarEGerarTokens() {
+        when(usuarioRepository.findByCpfHashAndAtivoTrue(cpfCriptografia.hash(CPF_DIGITOS))).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches("senha123", "senhaCriptografada")).thenReturn(true);
         when(tokenService.gerarToken(usuario)).thenReturn("tokenJwtFake123");
 
-        TokenResponseDTO response = authService.login(loginDTO);
+        TokenResponseDTO resposta = authService.login(new LoginDTO(CPF_VALIDO, "senha123"));
 
-        assertNotNull(response);
-        assertEquals("tokenJwtFake123", response.token());
-        assertEquals("Bearer", response.tipo());
+        assertEquals("tokenJwtFake123", resposta.token());
+        assertEquals("Bearer", resposta.tipo());
+        assertNotNull(resposta.refreshToken());
+        assertEquals(24 * 3600L, resposta.expiraEmSegundos());
+        // Só o hash do refresh token é gravado
+        ArgumentCaptor<RefreshToken> rt = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository).save(rt.capture());
+        assertNotEquals(resposta.refreshToken(), rt.getValue().getTokenHash());
+        assertTrue(rt.getValue().getExpiraEm().isAfter(LocalDateTime.now().plusDays(29)));
     }
 
     @Test
-    @DisplayName("Deve substituir o token anterior ao solicitar nova recuperação de senha")
+    @DisplayName("Registro antigo com CPF em texto puro é migrado para criptografado no login")
+    void deveMigrarCpfLegadoNoLogin() {
+        usuario.setCpf(CPF_DIGITOS);
+        usuario.setCpfHash(null);
+        when(usuarioRepository.findByCpfHashAndAtivoTrue(anyString())).thenReturn(Optional.empty());
+        when(usuarioRepository.findByCpfAndAtivoTrue(CPF_DIGITOS)).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches("senha123", "senhaCriptografada")).thenReturn(true);
+        when(tokenService.gerarToken(usuario)).thenReturn("t");
+
+        authService.login(new LoginDTO(CPF_DIGITOS, "senha123"));
+
+        assertTrue(CpfCriptografia.estaCriptografado(usuario.getCpf()));
+        assertEquals(cpfCriptografia.hash(CPF_DIGITOS), usuario.getCpfHash());
+    }
+
+    @Test
+    @DisplayName("RNF13: 5 senhas erradas seguidas bloqueiam por 15 minutos com mensagem genérica")
+    void deveBloquearAposCincoFalhas() {
+        when(usuarioRepository.findByCpfHashAndAtivoTrue(anyString())).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
+
+        for (int i = 1; i <= 4; i++) {
+            AutenticacaoException e = assertThrows(AutenticacaoException.class,
+                    () -> authService.login(new LoginDTO(CPF_VALIDO, "errada")));
+            assertEquals("CPF ou senha inválidos.", e.getMessage());
+            assertEquals(i, usuario.getTentativasFalhas());
+        }
+        AutenticacaoException quinta = assertThrows(AutenticacaoException.class,
+                () -> authService.login(new LoginDTO(CPF_VALIDO, "errada")));
+        assertTrue(quinta.getMessage().contains("bloqueado"));
+        assertNotNull(usuario.getBloqueadoAte());
+        assertTrue(usuario.getBloqueadoAte().isAfter(LocalDateTime.now().plusMinutes(14)));
+
+        // Bloqueado: nem a senha certa entra, e a senha não chega a ser verificada
+        reset(passwordEncoder);
+        assertThrows(AutenticacaoException.class, () -> authService.login(new LoginDTO(CPF_VALIDO, "senha123")));
+        verify(passwordEncoder, never()).matches(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("CPF inexistente devolve a mesma mensagem genérica")
+    void deveUsarMensagemGenericaParaCpfInexistente() {
+        when(usuarioRepository.findByCpfHashAndAtivoTrue(anyString())).thenReturn(Optional.empty());
+        when(usuarioRepository.findByCpfAndAtivoTrue(anyString())).thenReturn(Optional.empty());
+        AutenticacaoException e = assertThrows(AutenticacaoException.class,
+                () -> authService.login(new LoginDTO(CPF_VALIDO, "x")));
+        assertEquals("CPF ou senha inválidos.", e.getMessage());
+    }
+
+    @Test
+    @DisplayName("RNF07: refresh token válido gera novo par e revoga o anterior; revogado não serve mais")
+    void deveRenovarERevogarRefreshToken() {
+        RefreshToken atual = new RefreshToken();
+        atual.setUsuario(usuario);
+        atual.setExpiraEm(LocalDateTime.now().plusDays(10));
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(atual));
+        when(tokenService.gerarToken(usuario)).thenReturn("novo");
+
+        TokenResponseDTO novo = authService.renovar("qualquer");
+        assertEquals("novo", novo.token());
+        assertTrue(atual.isRevogado());
+
+        assertThrows(AutenticacaoException.class, () -> authService.renovar("qualquer"));
+    }
+
+    @Test
+    @DisplayName("RNF07: refresh token expirado é recusado")
+    void deveRecusarRefreshExpirado() {
+        RefreshToken velho = new RefreshToken();
+        velho.setUsuario(usuario);
+        velho.setExpiraEm(LocalDateTime.now().minusMinutes(1));
+        when(refreshTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.of(velho));
+        assertThrows(AutenticacaoException.class, () -> authService.renovar("x"));
+    }
+
+    @Test
+    @DisplayName("Recuperação de senha substitui o token anterior (comportamento da equipe preservado)")
     void deveSubstituirTokenAnteriorNaRecuperacaoDeSenha() {
         ForgotPasswordDTO dto = new ForgotPasswordDTO("runner@taskrunning.com");
         when(usuarioRepository.findByEmail(dto.email())).thenReturn(Optional.of(usuario));
 
-        authService.recuperarSenha(dto);
+        String token = authService.recuperarSenha(dto);
 
+        assertNotNull(token);
         verify(passwordResetTokenRepository).deleteByUsuario(usuario);
         verify(passwordResetTokenRepository).save(any(PasswordResetToken.class));
     }

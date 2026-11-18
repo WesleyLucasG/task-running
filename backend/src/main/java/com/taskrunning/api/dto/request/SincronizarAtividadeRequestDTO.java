@@ -27,7 +27,7 @@ public record SincronizarAtividadeRequestDTO(
         @PositiveOrZero(message = "A duração não pode ser negativa.")
         Long duracaoSegundos,
 
-        @NotEmpty(message = "A lista de pontos GPS não pode estar vazia.")
+        @NotNull(message = "A lista de pontos GPS é obrigatória (pode ser vazia se já enviada por delta).")
         @Valid
         List<PontoGpsRequestDTO> pontosGps
 ) {}

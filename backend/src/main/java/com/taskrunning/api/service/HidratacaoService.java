@@ -20,6 +20,18 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 public class HidratacaoService {
 
+    public static final java.util.Set<Integer> INTERVALOS_PERMITIDOS = java.util.Set.of(30, 60, 120, 180, 240);
+
+    private final GamificacaoService gamificacaoService;
+
+    /** RF30: histórico agrupado por data (últimos N dias). */
+    @Transactional
+    public java.util.List<com.taskrunning.api.dto.response.HistoricoHidratacaoDTO> historico(String cpfUsuario, int dias) {
+        Usuario usuario = buscarUsuarioPorCpf(cpfUsuario);
+        int n = Math.max(1, Math.min(dias, 90));
+        return registroRepository.historicoDesde(usuario.getId(), LocalDate.now().minusDays(n - 1L));
+    }
+
     private final ConfiguracaoHidratacaoRepository configuracaoRepository;
     private final RegistroHidratacaoRepository registroRepository;
     private final UsuarioRepository usuarioRepository;
@@ -43,6 +55,7 @@ public class HidratacaoService {
         novoRegistro.setDataRegistro(LocalDate.now());
 
         registroRepository.save(novoRegistro);
+        gamificacaoService.creditarXpHidratacao(usuario, dto.quantidadeMl()); // RN10
 
         ConfiguracaoHidratacao config = buscarConfiguracaoDoUsuario(usuario);
         int consumidoHoje = obterConsumoDoDia(usuario.getId());
@@ -56,13 +69,20 @@ public class HidratacaoService {
         ConfiguracaoHidratacao config = buscarConfiguracaoDoUsuario(usuario);
 
         config.setLembreteAtivo(dto.lembreteAtivo());
+        if (dto.intervaloMinutos() != null) {
+            if (!INTERVALOS_PERMITIDOS.contains(dto.intervaloMinutos())) {
+                throw new com.taskrunning.api.exception.BusinessRuleException("Intervalo inválido. Use 30, 60, 120, 180 ou 240 minutos.");
+            }
+            config.setIntervaloMinutos(dto.intervaloMinutos());
+        }
+        configuracaoRepository.save(config);
     }
 
 
 
     private Usuario buscarUsuarioPorCpf(String cpf) {
         return usuarioRepository.findByCpfAndAtivoTrue(cpf)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para o CPF: " + cpf));
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado."));
     }
 
     private ConfiguracaoHidratacao buscarConfiguracaoDoUsuario(Usuario usuario) {
@@ -92,7 +112,8 @@ public class HidratacaoService {
                 config.getMetaDiariaMl(),
                 consumidoHoje,
                 porcentagem,
-                config.getLembreteAtivo()
+                config.getLembreteAtivo(),
+                config.getIntervaloMinutos() != null ? config.getIntervaloMinutos() : 120
         );
     }
 

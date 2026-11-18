@@ -15,7 +15,9 @@ import java.time.ZoneOffset;
 @Service
 public class TokenService {
 
-    @Value("${api.security.token.secret:minha-chave-secreta-super-segura}")
+    public static final long HORAS_VALIDADE = 24; // RNF07
+
+    @Value("${api.security.token.secret}")
     private String secret;
 
     public String gerarToken(Usuario usuario) {
@@ -23,7 +25,7 @@ public class TokenService {
             Algorithm algorithm = Algorithm.HMAC256(secret);
             return JWT.create()
                     .withIssuer("task-running-api")
-                    .withSubject(usuario.getCpf())
+                    .withSubject(String.valueOf(usuario.getId())) // id: o CPF não vai no token
                     .withExpiresAt(gerarDataExpiracao())
                     .sign(algorithm);
         } catch (JWTCreationException exception) {
@@ -38,13 +40,13 @@ public class TokenService {
                     .withIssuer("task-running-api")
                     .build()
                     .verify(token)
-                    .getSubject(); // Extrai e retorna o CPF
+                    .getSubject(); // id do usuário
         } catch (JWTVerificationException exception) {
             return null;
         }
     }
 
     private Instant gerarDataExpiracao() {
-        return LocalDateTime.now().plusHours(24).toInstant(ZoneOffset.of("-03:00"));
+        return LocalDateTime.now().plusHours(HORAS_VALIDADE).toInstant(ZoneOffset.of("-03:00"));
     }
 }

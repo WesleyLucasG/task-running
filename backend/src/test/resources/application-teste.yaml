@@ -1,0 +1,23 @@
+# Perfil usado pelos testes de integração: H2 em memória no modo MySQL.
+spring:
+  datasource:
+    url: jdbc:h2:mem:taskrunning;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+api:
+  security:
+    token:
+      secret: segredo-somente-para-testes-de-integracao
+
+app:
+  seguranca:
+    cpf-chave: chave-cpf-somente-para-testes

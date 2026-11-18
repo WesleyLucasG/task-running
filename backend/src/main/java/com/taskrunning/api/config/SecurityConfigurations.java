@@ -28,7 +28,6 @@ public class SecurityConfigurations {
 
     // Defina FRONTEND_URL no Render após o deploy do frontend.
     // Ex: https://task-running.vercel.app
-    // Fallback: localhost para desenvolvimento local.
     @Value("${FRONTEND_URL:http://localhost:5174}")
     private String frontendUrl;
 
@@ -66,7 +65,7 @@ public class SecurityConfigurations {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // Origens permitidas: frontend em produção + localhost para dev
+        // allowedOriginPatterns suporta wildcard (*.vercel.app) — necessário com credentials
         config.setAllowedOriginPatterns(List.of(
                 frontendUrl,
                 "http://localhost:5173",

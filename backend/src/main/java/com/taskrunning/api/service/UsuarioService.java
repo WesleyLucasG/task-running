@@ -14,6 +14,9 @@ import org.springframework.stereotype.Service;
 public class UsuarioService {
 
     @Autowired
+    private com.taskrunning.api.security.CpfCriptografia cpfCriptografia;
+
+    @Autowired
     private UsuarioRepository usuarioRepository;
 
     @Autowired
@@ -34,7 +37,7 @@ public class UsuarioService {
                 usuario.getId(),
                 usuario.getNome(),
                 usuario.getEmail(),
-                usuario.getCpf(),
+                com.taskrunning.api.security.CpfCriptografia.mascarar(cpfCriptografia.descriptografar(usuario.getCpf())),
                 usuario.getPeso(),
                 metaAgua,
                 perfil
@@ -71,7 +74,7 @@ public class UsuarioService {
                 usuario.getId(),
                 usuario.getNome(),
                 usuario.getEmail(),
-                usuario.getCpf(),
+                com.taskrunning.api.security.CpfCriptografia.mascarar(cpfCriptografia.descriptografar(usuario.getCpf())),
                 usuario.getPeso(),
                 metaAgua,
                 perfil
@@ -86,6 +89,6 @@ public class UsuarioService {
 
     private Usuario buscarPorCpf(String cpf) {
         return usuarioRepository.findByCpfAndAtivoTrue(cpf)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado para o CPF: " + cpf));
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado."));
     }
 }
