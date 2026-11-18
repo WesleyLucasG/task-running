@@ -9,13 +9,15 @@ import { Caixa } from '../components/Caixa';
 import { Campo } from '../components/Campo';
 import { FundoPixel } from '../components/FundoPixel';
 import { LogoTR } from '../components/LogoTR';
+import { mascararCpf } from '../domain/validacoes';
 import { useAuth } from '../state/AuthContext';
 import { cores, espaco, fontes } from '../theme';
 
-// Figma "Login" (3:442). RF04: login com e-mail e senha. RNF13: bloqueio após 5 falhas.
+// Figma "Login" (3:442). Login Mobile por CPF + senha (decisão autorizada; o RF04 cita e-mail).
+// RNF13: bloqueio após 5 falhas.
 export default function Login() {
   const { entrar } = useAuth();
-  const [email, setEmail] = useState('');
+  const [cpf, setCpf] = useState('');
   const [senha, setSenha] = useState('');
   const [lembrar, setLembrar] = useState(true);
   const [erro, setErro] = useState('');
@@ -23,13 +25,13 @@ export default function Login() {
 
   async function aoEntrar() {
     setErro('');
-    if (!email.trim() || !senha) {
-      setErro('Informe e-mail e senha.');
+    if (!cpf.trim() || !senha) {
+      setErro('Informe CPF e senha.');
       return;
     }
     setCarregando(true);
     try {
-      await entrar(email, senha, lembrar);
+      await entrar(cpf, senha, lembrar);
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro inesperado.');
       setCarregando(false);
@@ -52,13 +54,13 @@ export default function Login() {
               <View style={estilos.linhaTitulo} />
 
               <Campo
-                rotulo="E-mail"
-                icone="mail-outline"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoComplete="email"
-                placeholder="heroi@olimpo.com"
+                rotulo="CPF"
+                icone="card-outline"
+                value={cpf}
+                onChangeText={(v) => setCpf(mascararCpf(v))}
+                keyboardType="number-pad"
+                maxLength={14}
+                placeholder="000.000.000-00"
               />
               <Campo
                 rotulo="Senha"
@@ -75,10 +77,16 @@ export default function Login() {
                 <Caixa marcada={lembrar} aoAlterar={setLembrar} rotuloAcessivel="Lembrar-me">
                   <Text style={estilos.opcao}>LEMBRAR-ME</Text>
                 </Caixa>
-                <Pressable onPress={() => router.push('/recuperar-senha')} hitSlop={8}>
-                  <Text style={estilos.esqueci}>ESQUECI A SENHA</Text>
-                </Pressable>
               </View>
+
+              {/* Recuperação de senha em destaque (pedido: mais fácil de encontrar) */}
+              <Pressable
+                style={estilos.recuperar}
+                onPress={() => router.push('/recuperar-senha')}
+                accessibilityRole="button">
+                <Ionicons name="key-outline" size={18} color={cores.laranja} />
+                <Text style={estilos.esqueci}>ESQUECEU SUA SENHA?</Text>
+              </Pressable>
 
               {!!erro && <Text style={estilos.erro}>{erro}</Text>}
 
@@ -147,12 +155,17 @@ const estilos = StyleSheet.create({
   linhaTitulo: { height: 2, backgroundColor: '#CBD5E1', marginBottom: espaco.sm },
   linhaOpcoes: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   opcao: { fontFamily: fontes.textoMedio, color: cores.texto, fontSize: 12 },
-  esqueci: {
-    fontFamily: fontes.textoNegrito,
-    color: cores.laranja,
-    fontSize: 12,
-    textDecorationLine: 'underline',
+  recuperar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: espaco.sm,
+    paddingVertical: 10,
+    borderWidth: 2,
+    borderColor: cores.laranja,
+    backgroundColor: '#7C2D1233',
   },
+  esqueci: { fontFamily: fontes.textoNegrito, color: cores.laranja, fontSize: 14, letterSpacing: 0.5 },
   erro: { fontFamily: fontes.texto, color: cores.erro, fontSize: 13 },
   divisor: { flexDirection: 'row', alignItems: 'center', gap: espaco.sm },
   traco: { flex: 1, height: 2, backgroundColor: '#CBD5E1' },

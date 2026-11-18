@@ -149,3 +149,24 @@ export async function marcarSincronizada(id: string): Promise<void> {
   const db = await getDb();
   await db.runAsync(`UPDATE atividades SET sincronizado = 1 WHERE id = ?`, [id]);
 }
+// RN16: atividades com algo a enviar — em andamento (delta de pontos) ou concluídas e pendentes (RN05)
+export async function listarParaSincronizar(usuarioId: string): Promise<Atividade[]> {
+  const db = await getDb();
+  const linhas = await db.getAllAsync<Linha>(
+    `SELECT * FROM atividades
+      WHERE usuario_id = ? AND sincronizado = 0 AND status IN ('EM_ANDAMENTO', 'CONCLUIDA')
+      ORDER BY data_inicio ASC`,
+    [usuarioId],
+  );
+  return linhas.map(mapear);
+}
+
+// Atividade que ficou em andamento (ex.: o app foi fechado no meio da corrida)
+export async function buscarEmAndamento(usuarioId: string): Promise<Atividade | null> {
+  const db = await getDb();
+  const l = await db.getFirstAsync<Linha>(
+    `SELECT * FROM atividades WHERE usuario_id = ? AND status = 'EM_ANDAMENTO' ORDER BY data_inicio DESC LIMIT 1`,
+    [usuarioId],
+  );
+  return l ? mapear(l) : null;
+}

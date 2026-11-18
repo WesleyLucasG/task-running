@@ -31,8 +31,20 @@ public class Usuario implements UserDetails {
     @Column(nullable = false)
     private String senha;
 
+    // RNF06: valor criptografado (AES-GCM). Registros antigos em texto puro são migrados no login.
     @Column(nullable = false, unique = true)
     private String cpf;
+
+    // Índice cego (HMAC-SHA256) usado para buscar o usuário pelo CPF sem decifrar a tabela
+    @Column(name = "cpf_hash", unique = true, length = 64)
+    private String cpfHash;
+
+    // RNF13: bloqueio de 15 minutos após 5 tentativas consecutivas malsucedidas
+    @Column(name = "tentativas_falhas")
+    private Integer tentativasFalhas = 0;
+
+    @Column(name = "bloqueado_ate")
+    private java.time.LocalDateTime bloqueadoAte;
 
     @Column(nullable = false)
     private Boolean ativo = true;

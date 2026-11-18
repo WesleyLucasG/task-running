@@ -22,6 +22,32 @@ import java.util.List;
 @RequiredArgsConstructor
 public class GamificacaoService {
 
+    public static final int XP_POR_KM = 100; // RN10
+    public static final int MOEDAS_POR_KM = 50; // RN10
+    public static final int XP_POR_100ML = 10; // RN10
+
+    /** RF19: nível pela curva usada no app (para passar do nível n são necessários 200 x n XP). */
+    public static int calcularNivel(long xpTotal) {
+        int nivel = 1;
+        long restante = Math.max(0, xpTotal);
+        while (restante >= 200L * nivel) {
+            restante -= 200L * nivel;
+            nivel++;
+        }
+        return nivel;
+    }
+
+    /** RN10: XP da hidratação (100 ml = 10 XP). */
+    @Transactional
+    public void creditarXpHidratacao(Usuario usuario, int quantidadeMl) {
+        long xp = (long) (Math.max(0, quantidadeMl) / 100) * XP_POR_100ML;
+        if (xp <= 0) return;
+        Carteira carteira = buscarOuCriarCarteira(usuario);
+        carteira.setExperienciaXp(carteira.getExperienciaXp() + xp);
+        carteira.setNivel(calcularNivel(carteira.getExperienciaXp()));
+        carteiraRepository.save(carteira);
+    }
+
     private final CarteiraRepository carteiraRepository;
     private final AvatarRepository avatarRepository;
     private final InventarioRepository inventarioRepository;
@@ -110,14 +136,15 @@ public class GamificacaoService {
     public void creditarRecompensaAtividade(Usuario usuario, int calorias, double distanciaMetros) {
         Carteira carteira = buscarOuCriarCarteira(usuario);
 
-        int moedasGanha = (int) (distanciaMetros / 100.0);
-        long xpGanho = (long) calorias;
+        // RN10: 1 km = 100 XP e 50 moedas. O bônus de agilidade (1 + agilidade x 0,005, máx. 50%)
+        // ainda não se aplica no servidor porque os atributos do avatar não existem no backend.
+        double km = Math.max(0, distanciaMetros) / 1000.0;
+        int moedasGanha = (int) Math.floor(km * MOEDAS_POR_KM);
+        long xpGanho = (long) Math.floor(km * XP_POR_KM);
 
         carteira.setMoedas(carteira.getMoedas() + moedasGanha);
         carteira.setExperienciaXp(carteira.getExperienciaXp() + xpGanho);
-
-        int novoNivel = (int) (carteira.getExperienciaXp() / 1000) + 1;
-        carteira.setNivel(novoNivel);
+        carteira.setNivel(calcularNivel(carteira.getExperienciaXp()));
 
         carteiraRepository.save(carteira);
     }

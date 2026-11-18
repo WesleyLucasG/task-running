@@ -20,7 +20,17 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
 
-  api:
-    security:
-      token:
-        secret: ${JWT_SECRET:chave-secreta-padrao-desenvolvimento-task-running-2026}
+# Lido por TokenService (api.security.token.secret). Antes estava dentro de "spring:",
+# por isso nunca era encontrado e a API assinava tokens com a chave padrão do código.
+api:
+  security:
+    token:
+      secret: ${JWT_SECRET:chave-secreta-padrao-desenvolvimento-task-running-2026}
+
+# RNF06: chave da criptografia do CPF (AES-GCM) e do hash de busca (HMAC-SHA256).
+# O valor padrão serve SOMENTE para desenvolvimento local; em produção use CPF_SECRET.
+app:
+  seguranca:
+    cpf-chave: ${CPF_SECRET:dev-somente-local-troque-em-producao}
+  cors:
+    origens: ${CORS_ORIGENS:http://localhost:5173,http://localhost:3000}

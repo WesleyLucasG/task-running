@@ -10,6 +10,7 @@ import { concluirAtividadeComRecompensa } from '../../db/jogo';
 import type { FaseCatalogo } from '../../domain/fases';
 import { calcularPace, estimarCalorias } from '../../domain/geo';
 import { POSICOES_MONSTROS } from '../../domain/idle';
+import { sincronizarPendentes } from '../../services/sincronizacao';
 import { useAuth } from '../../state/AuthContext';
 import { avisarJogadorAlterado } from '../../state/sinais';
 import { cores, espaco, fontes } from '../../theme';
@@ -58,6 +59,7 @@ export default function Mapa() {
         calorias: estimarCalorias(usuario.peso, metros, 'CAMINHADA'),
         paceMedio: calcularPace(metros, duracao),
       });
+      await sincronizarPendentes(usuario.id); // RN11(b): conta só depois de sincronizada
       await carregar();
       avisarJogadorAlterado();
     } catch (e) {

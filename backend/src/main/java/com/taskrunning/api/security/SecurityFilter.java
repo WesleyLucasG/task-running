@@ -29,8 +29,12 @@ public class SecurityFilter extends OncePerRequestFilter {
         var token = recuperarToken(request);
 
         if (token != null) {
-            var cpf = tokenService.getSubject(token);
-            var usuarioOpt = usuarioRepository.findByCpfAndAtivoTrue(cpf);
+            var subject = tokenService.getSubject(token);
+            // O subject é o id do usuário; tokens antigos (com CPF) simplesmente não autenticam
+            java.util.Optional<com.taskrunning.api.entity.Usuario> usuarioOpt = java.util.Optional.empty();
+            if (subject != null && subject.matches("[0-9]{1,18}")) {
+                usuarioOpt = usuarioRepository.findByIdAndAtivoTrue(Long.valueOf(subject));
+            }
 
             if (usuarioOpt.isPresent()) {
                 var usuario = usuarioOpt.get();

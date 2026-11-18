@@ -25,4 +25,8 @@ public class ConfiguracaoHidratacao {
 
     @Column(name = "lembrete_ativo", nullable = false)
     private Boolean lembreteAtivo = true;
+
+    // RF10: intervalo do lembrete em minutos (30, 60, 120, 180 ou 240)
+    @Column(name = "intervalo_minutos")
+    private Integer intervaloMinutos = 120;
 }

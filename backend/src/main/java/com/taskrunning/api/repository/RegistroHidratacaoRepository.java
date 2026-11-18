@@ -12,6 +12,11 @@ public interface RegistroHidratacaoRepository extends JpaRepository<RegistroHidr
 
     List<RegistroHidratacao> findByUsuarioIdAndDataRegistro(Long usuarioId, LocalDate dataRegistro);
 
+    @Query("SELECT new com.taskrunning.api.dto.response.HistoricoHidratacaoDTO(r.dataRegistro, CAST(SUM(r.quantidadeMl) AS Integer)) " +
+           "FROM RegistroHidratacao r WHERE r.usuario.id = :usuarioId AND r.dataRegistro >= :desde " +
+           "GROUP BY r.dataRegistro ORDER BY r.dataRegistro DESC")
+    List<com.taskrunning.api.dto.response.HistoricoHidratacaoDTO> historicoDesde(@Param("usuarioId") Long usuarioId, @Param("desde") LocalDate desde);
+
     @Query("SELECT COALESCE(SUM(r.quantidadeMl), 0) FROM RegistroHidratacao r WHERE r.usuario.id = :usuarioId AND r.dataRegistro = :dataRegistro")
     Integer somarMlConsumidosNoDia(@Param("usuarioId") Long usuarioId, @Param("dataRegistro") LocalDate dataRegistro);
 }

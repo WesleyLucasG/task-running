@@ -9,7 +9,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Botao } from '../components/Botao';
 import { Estatistica } from '../components/Estatistica';
 import { MapaOSM } from '../components/MapaOSM';
-import { cancelarAtividade, iniciarAtividade, salvarPonto, TipoAtividade } from '../db/atividades';
+import {
+  buscarEmAndamento,
+  cancelarAtividade,
+  iniciarAtividade,
+  listarPontos,
+  salvarPonto,
+  TipoAtividade,
+} from '../db/atividades';
+import { api, apiConfigurada } from '../services/api';
 import { concluirAtividadeComRecompensa } from '../db/jogo';
 import {
   calcularPace,
@@ -34,13 +42,30 @@ export default function Corrida() {
   const { usuario } = useAuth();
 
   // Estado que aparece na tela
-  const [tipo, setTipo] = useState<TipoAtividade>('CORRIDA');
+  // Mobile oferece apenas CORRIDA (decisão autorizada). Tipos antigos seguem válidos no histórico.
+  const tipo: TipoAtividade = 'CORRIDA';
   const [ativa, setAtiva] = useState(false);
   const [segundos, setSegundos] = useState(0);
   const [distancia, setDistancia] = useState(0);
   const [pontosMapa, setPontosMapa] = useState<[number, number][]>([]);
   const [semSinal, setSemSinal] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  // Posição atual antes de iniciar, para o mapa já abrir centralizado no usuário (zoom de rua)
+  const [posicaoAtual, setPosicaoAtual] = useState<[number, number] | null>(null);
+  useEffect(() => {
+    let ativo = true;
+    (async () => {
+      const p = await Location.getForegroundPermissionsAsync();
+      if (!p.granted) return;
+      const ultima = await Location.getLastKnownPositionAsync();
+      if (ativo && ultima) setPosicaoAtual([ultima.coords.latitude, ultima.coords.longitude]);
+      const agora = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      if (ativo) setPosicaoAtual([agora.coords.latitude, agora.coords.longitude]);
+    })().catch(() => {});
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   // Valores internos que mudam o tempo todo (refs não redesenham a tela)
   const atividadeId = useRef<string | null>(null);
@@ -95,13 +120,99 @@ export default function Corrida() {
     setPontosMapa((p) => [...p, [latitude, longitude]]);
   }
 
+  // Liga relógio, GPS e envio incremental. Usado ao iniciar e ao retomar uma corrida.
+  async function ligarSensores() {
+    await activateKeepAwakeAsync('corrida');
+    let tiques = 0;
+    relogio.current = setInterval(() => {
+      setSegundos(Math.floor((Date.now() - inicioMs.current) / 1000)); // RN06
+      setSemSinal(Date.now() - ultimoSinalLocal.current > 10000); // RF17
+      // RN16: a cada 30 s, com internet, envia só os pontos novos ao servidor
+      tiques += 1;
+      if (tiques % 30 === 0 && usuario) {
+        const id = usuario.id;
+        NetInfo.fetch().then((rede) => {
+          if (rede.isConnected && rede.isInternetReachable !== false) sincronizarPendentes(id).catch(() => {});
+        });
+      }
+    }, 1000);
+    assinatura.current = await Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0 },
+      aoReceberLocalizacao,
+    );
+  }
+
+
+  async function retomar(id: string, dataInicio: string) {
+    try {
+      const pontos = await listarPontos(id);
+      let total = 0;
+      for (let i = 1; i < pontos.length; i++) {
+        const a = pontos[i - 1];
+        const b = pontos[i];
+        const dt = (b.timestamp - a.timestamp) / 1000;
+        if (dt <= 0 || dt > LACUNA_MAX_S) continue; // RN03: lacuna não soma distância
+        const d = haversine(a, b);
+        if (d < DIST_MIN_M || velocidadeKmh(d, dt) > VELOCIDADE_MAX_KMH) continue;
+        total += d;
+      }
+      atividadeId.current = id;
+      inicioMs.current = new Date(dataInicio).getTime();
+      distMetros.current = total;
+      referencia.current = pontos[pontos.length - 1] ?? null;
+      ultimoFixGps.current = 0; // o primeiro ponto novo não soma o trecho do período fechado
+      ultimoSinalLocal.current = Date.now();
+      setDistancia(total);
+      setPontosMapa(pontos.map((p) => [p.latitude, p.longitude] as [number, number]));
+      setAtiva(true);
+      await ligarSensores();
+    } catch (e) {
+      pararSensores();
+      Alert.alert('Erro', e instanceof Error ? e.message : 'Não foi possível retomar a corrida.');
+    }
+  }
+
+  // RNF10/RN01: se o app foi fechado no meio da corrida, a atividade continua salva no SQLite.
+  // Ao voltar, o usuário pode retomá-la (distância recalculada só com os pontos válidos, RN03).
+  const usuarioId = usuario?.id;
+  useEffect(() => {
+    if (!usuarioId) return;
+    let cancelado = false;
+    buscarEmAndamento(usuarioId).then((pendente) => {
+      if (!pendente || cancelado || atividadeId.current) return;
+      Alert.alert(
+        'Corrida em andamento',
+        'Encontramos uma corrida que não foi finalizada. Deseja retomá-la?',
+        [
+          {
+            text: 'Cancelar corrida',
+            style: 'destructive',
+            onPress: async () => {
+              await cancelarAtividade(pendente.id);
+              if (apiConfigurada()) api(`/api/atividades/${pendente.id}/cancelar`, { metodo: 'POST' }).catch(() => {});
+            },
+          },
+          { text: 'Retomar', onPress: () => retomar(pendente.id, pendente.dataInicio) },
+        ],
+      );
+    });
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuarioId]);
+
   async function iniciar() {
     if (!usuario) return;
     try {
       // RNF14: permissão explícita do usuário
       const permissao = await Location.requestForegroundPermissionsAsync();
       if (permissao.status !== 'granted') {
-        Alert.alert('Permissão necessária', 'Precisamos acessar o GPS para registrar sua atividade.');
+        Alert.alert(
+          'Permissão de localização negada',
+          'Sem acesso ao GPS não é possível medir a distância da corrida, então o rastreamento não pode começar. ' +
+            'Você pode permitir a localização nas configurações do aparelho.',
+        );
         return;
       }
       if (!(await Location.hasServicesEnabledAsync())) {
@@ -123,17 +234,7 @@ export default function Corrida() {
       setSemSinal(false);
       setAtiva(true);
 
-      await activateKeepAwakeAsync('corrida');
-
-      relogio.current = setInterval(() => {
-        setSegundos(Math.floor((Date.now() - inicioMs.current) / 1000)); // RN06
-        setSemSinal(Date.now() - ultimoSinalLocal.current > 10000); // RF17
-      }, 1000);
-
-      assinatura.current = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0 },
-        aoReceberLocalizacao,
-      );
+      await ligarSensores();
     } catch (e) {
       pararSensores();
       setAtiva(false);
@@ -186,7 +287,10 @@ export default function Corrida() {
         onPress: async () => {
           const id = atividadeId.current;
           pararSensores();
-          if (id) await cancelarAtividade(id);
+          if (id) {
+            await cancelarAtividade(id);
+            if (apiConfigurada()) api(`/api/atividades/${id}/cancelar`, { metodo: 'POST' }).catch(() => {});
+          }
           atividadeId.current = null;
           setAtiva(false);
           setSegundos(0);
@@ -209,18 +313,6 @@ export default function Corrida() {
         </Pressable>
       </View>
 
-      {!ativa && (
-        <View style={estilos.seletor}>
-          {(['CORRIDA', 'CAMINHADA'] as TipoAtividade[]).map((t) => (
-            <Pressable
-              key={t}
-              onPress={() => setTipo(t)}
-              style={[estilos.opcao, tipo === t && estilos.opcaoAtiva]}>
-              <Text style={[estilos.opcaoTexto, tipo === t && { color: cores.texto }]}>{t}</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
 
       <View style={estilos.painel}>
         <Text style={estilos.distancia}>
@@ -243,7 +335,7 @@ export default function Corrida() {
         </View>
       )}
 
-      <MapaOSM pontos={pontosMapa} seguir style={estilos.mapa} />
+      <MapaOSM pontos={pontosMapa} seguir posicaoAtual={posicaoAtual} style={estilos.mapa} />
 
       <View style={estilos.acoes}>
         {!ativa ? (

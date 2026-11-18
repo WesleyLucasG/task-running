@@ -3,6 +3,7 @@ package com.taskrunning.api.controller;
 import com.taskrunning.api.dto.request.CadastroUsuarioDTO;
 import com.taskrunning.api.dto.request.ForgotPasswordDTO;
 import com.taskrunning.api.dto.request.LoginDTO;
+import com.taskrunning.api.dto.request.RefreshTokenRequestDTO;
 import com.taskrunning.api.dto.request.ResetPasswordDTO;
 import com.taskrunning.api.dto.response.TokenResponseDTO;
 import com.taskrunning.api.service.AuthService;
@@ -22,6 +23,11 @@ import java.util.Map;
 @RequestMapping("/auth")
 public class AuthController {
 
+    // Somente desenvolvimento: devolve o token na resposta para testar sem servidor de e-mail.
+    // Em produção (perfil prod) fica false e o token só pode ser entregue por e-mail.
+    @org.springframework.beans.factory.annotation.Value("${app.recuperacao.expor-token:true}")
+    private boolean exporTokenRecuperacao;
+
     @Autowired
     private AuthService authService;
 
@@ -32,9 +38,21 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    private ResponseEntity<TokenResponseDTO> login(@RequestBody @Valid LoginDTO dto){
+    public ResponseEntity<TokenResponseDTO> login(@RequestBody @Valid LoginDTO dto){
         TokenResponseDTO response = authService.login(dto);
         return ResponseEntity.ok(response);
+    }
+
+    // RNF07: renova o token de acesso com o refresh token (rotação)
+    @PostMapping("/refresh")
+    public ResponseEntity<TokenResponseDTO> renovar(@RequestBody @Valid RefreshTokenRequestDTO dto) {
+        return ResponseEntity.ok(authService.renovar(dto.refreshToken()));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> sair(@RequestBody @Valid RefreshTokenRequestDTO dto) {
+        authService.encerrarSessao(dto.refreshToken());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/forgot-password")
@@ -42,7 +60,7 @@ public class AuthController {
         String token = authService.recuperarSenha(dto);
         String mensagem = "Se o e-mail informado estiver cadastrado, as instruções para redefinir a senha foram enviadas.";
 
-        if (token != null){
+        if (token != null && exporTokenRecuperacao){
             return ResponseEntity.ok(Map.of("mensagem", mensagem, "tokenTeste", token));
         }
         return ResponseEntity.ok(Map.of("mensagem", mensagem));

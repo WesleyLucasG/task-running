@@ -1,3 +1,5 @@
+import { apiConfigurada } from '../services/api';
+import * as Remoto from '../services/authRemoto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import { registrarEvento } from '../db/auditoria';
@@ -91,6 +93,7 @@ export function converterAltura(bruto?: string): number | undefined | null {
 }
 
 export async function cadastrar(d: DadosCadastro): Promise<Usuario> {
+  if (apiConfigurada()) return Remoto.cadastrar(d);
   const nome = d.nome.trim();
   const email = d.email.trim().toLowerCase();
   const peso = Number(d.peso.replace(',', '.'));
@@ -130,8 +133,15 @@ export async function cadastrar(d: DadosCadastro): Promise<Usuario> {
 }
 
 // lembrar = false ("LEMBRAR-ME" desmarcado no Figma): a sessão vale só enquanto o app estiver aberto
-export async function entrar(emailBruto: string, senha: string, lembrar = true): Promise<Usuario> {
-  const email = emailBruto.trim().toLowerCase();
+// Login por CPF (decisão do Mobile) ou e-mail; com API configurada, vai ao backend.
+export async function entrar(identificadorBruto: string, senha: string, lembrar = true): Promise<Usuario> {
+  if (apiConfigurada()) return Remoto.entrar(identificadorBruto, senha, lembrar);
+  const identificador = identificadorBruto.trim().toLowerCase();
+  const digitosCpf = somenteDigitos(identificador);
+  const porCpf = !identificador.includes('@') && digitosCpf.length === 11;
+  const cpfHashInformado = porCpf ? await hash(digitosCpf) : null;
+  // chave das tentativas de login (RNF13); para CPF usa o hash, nunca o número em claro (RNF20)
+  const email = porCpf ? `cpf:${cpfHashInformado!.slice(0, 16)}` : identificador;
   const tentativas = await lerJson<Record<string, RegistroTentativas>>(CHAVE_TENTATIVAS, {});
   let reg = tentativas[email] ?? { falhas: 0, bloqueadoAte: 0 };
 
@@ -147,7 +157,9 @@ export async function entrar(emailBruto: string, senha: string, lembrar = true):
 
   const usuarios = await lerUsuarios();
   const senhaHash = await hash(senha);
-  const achado = usuarios.find((u) => u.email === email && u.senhaHash === senhaHash);
+  const achado = usuarios.find(
+    (u) => (porCpf ? u.cpfHash === cpfHashInformado : u.email === email) && u.senhaHash === senhaHash,
+  );
 
   if (!achado) {
     reg.falhas += 1;
@@ -159,7 +171,7 @@ export async function entrar(emailBruto: string, senha: string, lembrar = true):
     await registrarEvento('LOGIN', 'FALHA', { email }); // RNF18
 
     if (bloqueou) throw new Error('Muitas tentativas inválidas. Acesso bloqueado por 15 minutos.');
-    throw new Error(`E-mail ou senha incorretos. Tentativas restantes: ${restantes}.`);
+    throw new Error(`${porCpf ? 'CPF' : 'E-mail'} ou senha incorretos. Tentativas restantes: ${restantes}.`);
   }
 
   delete tentativas[email];
@@ -171,6 +183,7 @@ export async function entrar(emailBruto: string, senha: string, lembrar = true):
 }
 
 export async function carregarSessao(): Promise<Usuario | null> {
+  if (apiConfigurada()) return Remoto.carregarSessao();
   const id = await AsyncStorage.getItem(CHAVE_SESSAO);
   if (!id) return null;
   const achado = (await lerUsuarios()).find((u) => u.id === id);
@@ -178,6 +191,7 @@ export async function carregarSessao(): Promise<Usuario | null> {
 }
 
 export async function sair(): Promise<void> {
+  if (apiConfigurada()) return Remoto.sair();
   await AsyncStorage.removeItem(CHAVE_SESSAO);
 }
 
@@ -185,6 +199,7 @@ export async function sair(): Promise<void> {
 export async function solicitarRecuperacao(
   emailBruto: string,
 ): Promise<{ codigoSimulado: string | null }> {
+  if (apiConfigurada()) return Remoto.solicitarRecuperacao(emailBruto);
   const email = emailBruto.trim().toLowerCase();
   if (!validarEmail(email)) throw new Error('Informe um e-mail válido.');
 
@@ -223,6 +238,7 @@ export async function redefinirSenha(
   novaSenha: string,
   confirmar: string,
 ): Promise<void> {
+  if (apiConfigurada()) return Remoto.redefinirSenha(codigoBruto, novaSenha, confirmar);
   const email = emailBruto.trim().toLowerCase();
   const codigo = codigoBruto.trim().toUpperCase();
 
@@ -268,6 +284,7 @@ export async function redefinirSenha(
 
 // UC08: o CPF não pode ser alterado nesta versão
 export async function atualizarPerfil(usuarioId: string, d: DadosPerfil): Promise<Usuario> {
+  if (apiConfigurada()) return Remoto.atualizarPerfil(d);
   const nome = d.nome.trim();
   const email = d.email.trim().toLowerCase();
   const peso = Number(d.peso.replace(',', '.'));

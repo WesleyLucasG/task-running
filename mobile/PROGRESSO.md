@@ -95,3 +95,40 @@ Tela Bloqueio `108:324`, `6:6392`.
 | 17/11/2026 | `npm test` (motor idle), `tsc`, `lint`, `expo export` | 6/6 testes OK, 0 erros |
 | 17/11/2026 | `npm test` (13: motor idle + loot com SQLite em memória), `tsc`, `lint`, `expo export` | 13/13 OK, 0 erros |
 | 17/11/2026 | correção do erro do React Compiler + slots/descarte: `npm test`, `tsc`, `lint`, `expo export` | 14/14 OK, 0 erros |
+
+---
+
+## Fase de integração com o backend (18/11/2026) — referência: Documento de Requisitos 2.0
+
+### Decisões
+| # | Tema | Decisão | Base |
+|---|---|---|---|
+| D22 | Login | Mobile entra com **CPF + senha** (autorizado; RF04 cita e-mail). Backend já autenticava por CPF | prompt |
+| D23 | CPF (RNF06) | AES-256-GCM no campo `cpf` + índice cego HMAC-SHA256 em `cpf_hash`. Registros antigos em texto puro migram no próximo login (não destrutivo) | RNF06 |
+| D24 | JWT | Subject = id do usuário (CPF fora do token); 24 h + refresh token de 30 dias com rotação | RNF07 |
+| D25 | Sincronização (RN16) | `sincronizacao_local` no SQLite; delta de pontos a cada 30 s em corrida; hash SHA-256 canônico igual no app e no backend; 1 ponto por segundo; espera progressiva 5 s→10 min | RN04, RN05, RN16 |
+| D26 | Modalidade | Mobile oferece só CORRIDA; tipos antigos continuam válidos | prompt |
+| D27 | Mapa offline | Sem download de blocos do tile.openstreetmap.org (política OSMF). Sem internet: aviso no mapa e GPS continua gravando | política OSMF |
+| D28 | RN11(b) | Chefe exige atividade **sincronizada** nas últimas 24 h; a mensagem diz qual condição falta | RN11 |
+
+### Matriz de integração
+| Funcionalidade | Backend | Mobile | Situação |
+|---|---|---|---|
+| Cadastro | `/auth/register` (CPF validado, 409 em duplicidade) | integrado | Concluído |
+| Login CPF + bloqueio | `/auth/login` (RNF13 corrigido) | integrado | Concluído |
+| Refresh / logout | `/auth/refresh`, `/auth/logout` | renovação automática no 401 | Concluído |
+| Recuperação de senha | `/auth/forgot-password`, `/reset-password` | integrado | **Envio de e-mail pendente (SMTP)** |
+| Perfil | `/api/perfil` (CPF mascarado) | integrado | Concluído |
+| Atividades + delta + hash | `/api/atividades/...` | integrado | Concluído (E2E) |
+| Histórico | `GET /api/atividades` | tela usa o SQLite local | Parcial |
+| Hidratação + 30 min | `/api/hidratacao` (+ histórico) | integrado (registro e lembrete) | Concluído |
+| XP e moedas (RN10) | carteira corrigida (100 XP / 50 moedas por km) | jogo usa a economia local | Parcial |
+| Fases, chefes, baús, itens, aparência | **não existem no backend** | só no aparelho (SQLite) | Pendente no backend |
+
+### Verificações
+| Data | O quê | Resultado |
+|---|---|---|
+| 18/11/2026 | Backend `mvnw test` (JDK 17): unitários + 2 integração H2 | 34/34 |
+| 18/11/2026 | Mobile `npm test` | 18/18 |
+| 18/11/2026 | E2E `testes/e2e-api.mjs` contra a API real local | 15/15 |
+| 18/11/2026 | `tsc`, `expo lint`, `expo export android` | OK |

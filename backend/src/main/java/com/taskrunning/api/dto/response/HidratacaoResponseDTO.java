@@ -4,5 +4,6 @@ public record HidratacaoResponseDTO(
         Integer metaDiariaMl,
         Integer consumidoHojeMl,
         Double porcentagemConcluida,
-        Boolean lembreteAtivo
+        Boolean lembreteAtivo,
+        Integer intervaloMinutos
 ) {}

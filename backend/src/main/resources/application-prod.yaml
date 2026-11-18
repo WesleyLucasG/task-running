@@ -1,0 +1,30 @@
+# Perfil de produção (nuvem): ativar com SPRING_PROFILES_ACTIVE=prod.
+# Nenhum segredo tem valor padrão aqui: se faltar variável, a API não sobe.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update  # apenas cria colunas/tabelas novas; nunca apaga dados
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+server:
+  forward-headers-strategy: framework  # HTTPS terminado no proxy da nuvem
+
+api:
+  security:
+    token:
+      secret: ${JWT_SECRET}
+
+app:
+  seguranca:
+    cpf-chave: ${CPF_SECRET}
+  cors:
+    origens: ${CORS_ORIGENS:}
+  recuperacao:
+    expor-token: false

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import * as Auth from '../domain/auth';
+import { quandoSessaoExpirar } from '../services/api';
 
 // Fluxo do Figma: Abertura → Onboarding (1ª vez no aparelho) → Cadastro/Login
 // → Permissões → Criação de Personagem (1ª vez da conta) → Home.
@@ -40,6 +41,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [lerConfigurado],
   );
+
+  // Refresh token vencido/revogado (RNF07): volta para a tela de login
+  useEffect(() => quandoSessaoExpirar(() => setUsuario(null)), []);
 
   useEffect(() => {
     Promise.all([Auth.carregarSessao(), AsyncStorage.getItem(CHAVE_INTRO)])
