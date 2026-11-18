@@ -1,3 +1,5 @@
+import { apiConfigurada } from '../services/api';
+import * as Remoto from '../services/jogoRemoto';
 import * as Crypto from 'expo-crypto';
 import { CATALOGO, Raridade, sortearRaridade, TipoBau, TipoItem } from '../domain/loja';
 import { escolherItem } from '../domain/recompensas';
@@ -20,6 +22,7 @@ export type ItemInventario = {
 };
 
 export async function listarBaus(usuarioId: string): Promise<Bau[]> {
+  if (apiConfigurada()) return Remoto.listarBaus();
   const db = await getDbLoja();
   const linhas = await db.getAllAsync<{ id: string; tipo: TipoBau; criado_em: string }>(
     `SELECT id, tipo, criado_em FROM baus
@@ -31,6 +34,7 @@ export async function listarBaus(usuarioId: string): Promise<Bau[]> {
 
 // UC12
 export async function abrirBau(usuarioId: string, bauId: string): Promise<ItemInventario> {
+  if (apiConfigurada()) return Remoto.abrirBau(bauId);
   const db = await getDbLoja();
   let novo!: ItemInventario;
 
@@ -71,6 +75,7 @@ export async function abrirBau(usuarioId: string, bauId: string): Promise<ItemIn
 
 // RF25
 export async function listarInventario(usuarioId: string): Promise<ItemInventario[]> {
+  if (apiConfigurada()) return Remoto.listarInventario();
   const db = await getDbLoja();
   const linhas = await db.getAllAsync<{
     id: string;
@@ -104,6 +109,7 @@ export async function listarInventario(usuarioId: string): Promise<ItemInventari
 
 // RF26: equipar desequipa o item anterior do mesmo tipo (UC10)
 export async function alternarEquipado(usuarioId: string, registroId: string): Promise<void> {
+  if (apiConfigurada()) return Remoto.alternarEquipado(registroId);
   const db = await getDbLoja();
   await db.withTransactionAsync(async () => {
     const alvo = await db.getFirstAsync<{ equipado: number; tipo: string; local: LocalItem }>(
@@ -131,6 +137,7 @@ export async function alternarEquipado(usuarioId: string, registroId: string): P
 
 // Soma dos bônus dos itens equipados (será usada no dano contra o chefe, RN12)
 export async function bonusEquipados(usuarioId: string): Promise<{ forca: number; vida: number }> {
+  if (apiConfigurada()) return Remoto.bonusEquipados();
   const db = await getDbLoja();
   const l = await db.getFirstAsync<{ forca: number; vida: number }>(
     `SELECT COALESCE(SUM(i.bonus_forca), 0) AS forca, COALESCE(SUM(i.bonus_vida), 0) AS vida

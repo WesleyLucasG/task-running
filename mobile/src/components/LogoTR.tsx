@@ -1,34 +1,23 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { cores, fontes } from '../theme';
+import { Image, StyleSheet, View } from 'react-native';
+import { cores } from '../theme';
 
-// Moldura dourada do logo "TR" do Figma.
-// PENDENTE: quando o PNG do brasão estiver em assets/images/logo-tr.png,
-// trocar o conteúdo interno por <Image source={require('../../assets/images/logo-tr.png')} />.
+// Brasão "TR" do Figma: logo sobre quadrado branco dentro da moldura dourada.
 export function LogoTR({ tamanho = 120 }: { tamanho?: number }) {
   return (
     <View style={[estilos.moldura, { width: tamanho, height: tamanho }]}>
       <View style={estilos.interno}>
-        <Text style={[estilos.sigla, { fontSize: tamanho * 0.28 }]}>TR</Text>
+        <Image
+          source={require('../../assets/images/logo-tr.png')}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="contain"
+          accessibilityLabel="Logo Task Running"
+        />
       </View>
     </View>
   );
 }
 
 const estilos = StyleSheet.create({
-  moldura: { borderWidth: 4, borderColor: cores.dourado, padding: 6, backgroundColor: cores.fundo },
-  interno: {
-    flex: 1,
-    borderWidth: 2,
-    borderColor: cores.douradoEscuro,
-    backgroundColor: '#1D3A6B',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sigla: {
-    fontFamily: fontes.pixel,
-    color: cores.laranja,
-    textShadowColor: cores.douradoClaro,
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 0,
-  },
+  moldura: { borderWidth: 4, borderColor: cores.dourado, padding: 6, backgroundColor: cores.superficie },
+  interno: { flex: 1, backgroundColor: '#FFFFFF', padding: 4 },
 });

@@ -1,3 +1,5 @@
+import { apiConfigurada } from '../services/api';
+import * as Remoto from '../services/jogoRemoto';
 import * as Crypto from 'expo-crypto';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { diaLocal } from '../domain/datas';
@@ -155,16 +157,23 @@ export async function registrarDistanciaNaFase(
 type ContextoCombate = {
   maiorKm: number;
   ultimaAtividade: string | null;
+  pendenteDeSincronizar: boolean;
   forcaBase: number;
   bonusForca: number;
 };
 
 async function lerContextoCombate(db: SQLiteDatabase, usuarioId: string): Promise<ContextoCombate> {
   const corte = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  // RN11(b)/RN12: só contam atividades CONCLUÍDAS E SINCRONIZADAS nas últimas 24 h
   const a = await db.getFirstAsync<{ maior: number | null; ultima: string | null }>(
     `SELECT MAX(distancia_metros) AS maior, MAX(data_fim) AS ultima
        FROM atividades
-      WHERE usuario_id = ? AND status = 'CONCLUIDA' AND data_fim >= ?`,
+      WHERE usuario_id = ? AND status = 'CONCLUIDA' AND sincronizado = 1 AND data_fim >= ?`,
+    [usuarioId, corte],
+  );
+  const naoSinc = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM atividades
+      WHERE usuario_id = ? AND status = 'CONCLUIDA' AND sincronizado = 0 AND data_fim >= ?`,
     [usuarioId, corte],
   );
   const f = await db.getFirstAsync<{ forca_base: number }>(
@@ -184,6 +193,7 @@ async function lerContextoCombate(db: SQLiteDatabase, usuarioId: string): Promis
   return {
     maiorKm: (a?.maior ?? 0) / 1000, // RN12: maior distância das últimas 24h
     ultimaAtividade: a?.ultima ?? null,
+    pendenteDeSincronizar: (naoSinc?.n ?? 0) > 0,
     // Pontos em Força somam à força base do herói (D15)
     forcaBase: (f?.forca_base ?? 10) + (h?.forca ?? 0),
     bonusForca: b?.forca ?? 0,
@@ -196,7 +206,9 @@ function motivoBloqueio(prog: LinhaProgresso, ctx: ContextoCombate): string | nu
   }
   // RN11 (b)
   if (ctx.ultimaAtividade === null) {
-    return 'Faça uma atividade nas últimas 24 horas para enfrentar o chefe.';
+    return ctx.pendenteDeSincronizar
+      ? 'Meta atingida! Falta sincronizar sua corrida recente: conecte-se à internet para liberar o confronto.'
+      : 'Meta atingida! Faça uma corrida nas últimas 24 horas para enfrentar o chefe.';
   }
   // UC11, passo 6: novo ataque só depois de mais atividade física
   if (prog.ultimo_ataque_em && ctx.ultimaAtividade <= prog.ultimo_ataque_em) {
@@ -206,6 +218,7 @@ function motivoBloqueio(prog: LinhaProgresso, ctx: ContextoCombate): string | nu
 }
 
 export async function obterEstadoMapa(usuarioId: string): Promise<EstadoMapa> {
+  if (apiConfigurada()) return Remoto.obterEstadoMapa();
   const db = await getDbFases();
   await garantirAvatar(db, usuarioId);
   await garantirProgresso(db, usuarioId);
@@ -253,6 +266,7 @@ export function atacarChefe(usuarioId: string): Promise<ResultadoAtaque> {
 // Confronto na esteira idle: o herói causou `danoCausado` ao chefe. O valor é limitado
 // pela RN12, a vida restante é persistida (RN15) e o confronto consome a atividade (UC11).
 export async function registrarConfronto(usuarioId: string, danoCausado: number): Promise<ResultadoAtaque> {
+  if (apiConfigurada()) return Remoto.atacarChefe(danoCausado);
   const db = await getDbFases();
   let resultado!: ResultadoAtaque;
 

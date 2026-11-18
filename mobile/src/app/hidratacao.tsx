@@ -15,12 +15,25 @@ import {
   totalDoDia,
 } from '../db/hidratacao';
 import { formatarDia } from '../domain/datas';
+import { api, apiConfigurada } from '../services/api';
+import { hermesFalar } from '../state/hermes';
 import { agendarLembretes, cancelarLembretes, testarLembrete } from '../services/lembretes';
 import { useAuth } from '../state/AuthContext';
 import { cores, espaco, fontes, raio } from '../theme';
 
 const ATALHOS = [200, 300, 500];
-const INTERVALOS = [1, 2, 3, 4];
+// 0.5 = a cada 30 minutos (nova opção); as demais continuam disponíveis
+const INTERVALOS = [0.5, 1, 2, 3, 4];
+const rotuloIntervalo = (h: number) => (h < 1 ? `${Math.round(h * 60)} min` : `${h}h`);
+
+// RF10: espelha a configuração do lembrete no backend (intervalo em minutos)
+function enviarConfigServidor(c: { ativo: boolean; intervaloHoras: number }) {
+  if (!apiConfigurada()) return;
+  api('/api/hidratacao/lembrete', {
+    metodo: 'PATCH',
+    corpo: { lembreteAtivo: c.ativo, intervaloMinutos: Math.round(c.intervaloHoras * 60) },
+  }).catch(() => {});
+}
 
 export default function Hidratacao() {
   const { usuario } = useAuth();
@@ -53,7 +66,10 @@ export default function Hidratacao() {
       const r = await registrarConsumo(usuario.id, ml, meta);
       let msg = `+${ml} ml registrados · +${r.xp} XP`;
       if (r.subiuNivel) msg += ` · Nível ${r.nivelDepois}!`;
-      if (r.bauConcedido) msg += ' · Meta batida! Você ganhou um Baú Bronze.';
+      if (r.bauConcedido) {
+        msg += ' · Meta batida! Você ganhou um Baú Bronze.';
+        hermesFalar(`agua-${new Date().toDateString()}`, 'Meta de hidratação do dia concluída! Um Baú Bronze te espera no inventário.', 'acenando');
+      }
       setMensagem(msg);
       setCustom('');
       await carregar();
@@ -72,7 +88,8 @@ export default function Hidratacao() {
     if (!usuario) return;
     const nova = { ...config, ativo };
     setConfig(nova);
-    await salvarConfig(usuario.id, nova); // a escolha é gravada primeiro
+    await salvarConfig(usuario.id, nova);
+    enviarConfigServidor(nova); // a escolha é gravada primeiro
     try {
       if (ativo) {
         const ok = await agendarLembretes(config.intervaloHoras);
@@ -102,6 +119,7 @@ export default function Hidratacao() {
     const nova = { ...config, intervaloHoras: horas };
     setConfig(nova);
     await salvarConfig(usuario.id, nova);
+    enviarConfigServidor(nova);
     if (!config.ativo) return;
     try {
       await agendarLembretes(horas);
@@ -173,7 +191,7 @@ export default function Hidratacao() {
             trackColor={{ false: cores.borda, true: cores.laranja }}
           />
         </View>
-        <Text style={estilos.texto}>A cada quantas horas (entre 8h e 20h):</Text>
+        <Text style={estilos.texto}>Com que frequência (entre 8h e 20h):</Text>
         <View style={estilos.linha}>
           {INTERVALOS.map((h) => (
             <Pressable
@@ -181,7 +199,7 @@ export default function Hidratacao() {
               onPress={() => mudarIntervalo(h)}
               style={[estilos.chip, config.intervaloHoras === h && estilos.chipAtivo]}>
               <Text style={[estilos.chipTexto, config.intervaloHoras === h && { color: cores.texto }]}>
-                {h}h
+                {rotuloIntervalo(h)}
               </Text>
             </Pressable>
           ))}

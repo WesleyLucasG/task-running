@@ -42,17 +42,20 @@ async function prepararCanal() {
 const canal = () => (canalDisponivel ? { channelId: CANAL } : {});
 
 // Agenda um lembrete diário a cada N horas, entre 8h e 20h
+// intervaloHoras aceita 0.5 (30 minutos). Sempre cancela os agendamentos anteriores antes de
+// reagendar, então mudar o intervalo nunca deixa notificações duplicadas.
 export async function agendarLembretes(intervaloHoras: number): Promise<boolean> {
   if (!(await garantirPermissao())) return false;
   await prepararCanal();
   await Notifications.cancelAllScheduledNotificationsAsync();
-  for (let hora = HORA_INICIO; hora <= HORA_FIM; hora += intervaloHoras) {
+  const passoMin = Math.max(30, Math.round(intervaloHoras * 60));
+  for (let min = HORA_INICIO * 60; min <= HORA_FIM * 60; min += passoMin) {
     await Notifications.scheduleNotificationAsync({
       content: { title: 'Hora de beber água!', body: 'Registre seu consumo no Task Running e ganhe XP.' },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: hora,
-        minute: 0,
+        hour: Math.floor(min / 60),
+        minute: min % 60,
         ...canal(),
       },
     });

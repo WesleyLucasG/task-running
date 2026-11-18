@@ -95,3 +95,107 @@ Tela Bloqueio `108:324`, `6:6392`.
 | 17/11/2026 | `npm test` (motor idle), `tsc`, `lint`, `expo export` | 6/6 testes OK, 0 erros |
 | 17/11/2026 | `npm test` (13: motor idle + loot com SQLite em memória), `tsc`, `lint`, `expo export` | 13/13 OK, 0 erros |
 | 17/11/2026 | correção do erro do React Compiler + slots/descarte: `npm test`, `tsc`, `lint`, `expo export` | 14/14 OK, 0 erros |
+
+---
+
+## Fase de integração com o backend (18/11/2026) — referência: Documento de Requisitos 2.0
+
+### Decisões
+| # | Tema | Decisão | Base |
+|---|---|---|---|
+| D22 | Login | Mobile entra com **CPF + senha** (autorizado; RF04 cita e-mail). Backend já autenticava por CPF | prompt |
+| D23 | CPF (RNF06) | AES-256-GCM no campo `cpf` + índice cego HMAC-SHA256 em `cpf_hash`. Registros antigos em texto puro migram no próximo login (não destrutivo) | RNF06 |
+| D24 | JWT | Subject = id do usuário (CPF fora do token); 24 h + refresh token de 30 dias com rotação | RNF07 |
+| D25 | Sincronização (RN16) | `sincronizacao_local` no SQLite; delta de pontos a cada 30 s em corrida; hash SHA-256 canônico igual no app e no backend; 1 ponto por segundo; espera progressiva 5 s→10 min | RN04, RN05, RN16 |
+| D26 | Modalidade | Mobile oferece só CORRIDA; tipos antigos continuam válidos | prompt |
+| D27 | Mapa offline | Sem download de blocos do tile.openstreetmap.org (política OSMF). Sem internet: aviso no mapa e GPS continua gravando | política OSMF |
+| D28 | RN11(b) | Chefe exige atividade **sincronizada** nas últimas 24 h; a mensagem diz qual condição falta | RN11 |
+
+### Matriz de integração
+| Funcionalidade | Backend | Mobile | Situação |
+|---|---|---|---|
+| Cadastro | `/auth/register` (CPF validado, 409 em duplicidade) | integrado | Concluído |
+| Login CPF + bloqueio | `/auth/login` (RNF13 corrigido) | integrado | Concluído |
+| Refresh / logout | `/auth/refresh`, `/auth/logout` | renovação automática no 401 | Concluído |
+| Recuperação de senha | `/auth/forgot-password`, `/reset-password` | integrado | **Envio de e-mail pendente (SMTP)** |
+| Perfil | `/api/perfil` (CPF mascarado) | integrado | Concluído |
+| Atividades + delta + hash | `/api/atividades/...` | integrado | Concluído (E2E) |
+| Histórico | `GET /api/atividades` | tela usa o SQLite local | Parcial |
+| Hidratação + 30 min | `/api/hidratacao` (+ histórico) | integrado (registro e lembrete) | Concluído |
+| XP e moedas (RN10) | carteira corrigida (100 XP / 50 moedas por km) | jogo usa a economia local | Parcial |
+| Fases, chefes, baús, itens, aparência | **não existem no backend** | só no aparelho (SQLite) | Pendente no backend |
+
+### Verificações
+| Data | O quê | Resultado |
+|---|---|---|
+| 18/11/2026 | Backend `mvnw test` (JDK 17): unitários + 2 integração H2 | 34/34 |
+| 18/11/2026 | Mobile `npm test` | 18/18 |
+| 18/11/2026 | E2E `testes/e2e-api.mjs` contra a API real local | 15/15 |
+| 18/11/2026 | `tsc`, `expo lint`, `expo export android` | OK |
+
+---
+
+## Rodada de homologação (18/11/2026)
+
+**Auditoria:** branch `feature/mobile-figma` limpa (commit `e302fe7`). `origin/main` traz o frontend Web (Vite, Vercel) e só altera `SecurityConfigurations.java` no backend → conflito com esta branch no merge. API em produção: `https://task-running-api.onrender.com` (versão antiga do `main`, sem refresh/delta/histórico).
+
+| # | Decisão | Base |
+|---|---|---|
+| D29 | Sincronização compatível com API antiga: sem endpoint de delta, a corrida vai inteira na finalização | segurança dos dados |
+| D30 | RNF11: pontos GPS cifrados com AES-256-GCM (`@noble/ciphers`), chave no SecureStore, ID da atividade como dado associado; pontos antigos migram na leitura | RNF11 |
+| D31 | Itens do roadmap (Loja, Árvore de Atributos, moedas/baús de monstros) fora do fluxo pela chave `src/config/escopo.ts` | §2.4 |
+| D32 | Avatar em camadas: 3 cabelos masculinos + 3 femininos, 6 cores de cabelo, 3 detalhes de roupa. **Persistência só local** até o backend ter os campos | RF11/RF29 |
+| D33 | Hermes contextual por eventos reais (saudação, corrida, GPS, sync confirmada, chefe liberado, meta de água, personalização) | prompt |
+| D34 | Mapa: chefe visível mesmo bloqueado; tags Bloqueado / Explorando / Meta atingida / Chefe liberado / Chefe derrotado | RN11 |
+| D35 | `mobile/.env.production` aponta para o Render (HTTPS) | RNF03/RNF22 |
+
+| Verificação | Resultado |
+|---|---|
+| Backend `mvnw test` | 34/34 |
+| Mobile `npm test` (inclui cifra GPS) | 21/21 |
+| `tsc`, `expo lint` | sem erros |
+| `expo export` produção (URL do Render embutida) | OK |
+
+---
+
+## RPG no servidor (18/11/2026) — autorizado no complemento
+
+| # | Decisão | Base |
+|---|---|---|
+| D36 | Backend é a autoridade do jogo: `/api/jogo` (estado, aparência, chefe, baús, inventário). Usuário sempre do token (`@AuthenticationPrincipal`) | RN07 |
+| D37 | Sem 2ª economia: reaproveita a **Carteira**. Atributos (força, agilidade, vida) derivados do nível da Carteira, regra já usada pelo app (+2/+2/+10 por nível); RN10 com multiplicador de agilidade | RN10, RF19 |
+| D38 | Tabelas novas (sem alterar as existentes): `aparencias_avatar`, `fases`, `progresso_fase`, `itens`, `baus`, `inventario_itens`. `avatares`/`inventario` (loja de skins do Web) intocadas | RF11, RF20–RF26 |
+| D39 | Raridades: baús Bronze/Prata/Ouro e itens Comum/Raro/Épico/Lendário, como em UC12 e RN14 (Incomum fica só no modo local) | UC12, RN14 |
+| D40 | App em modo API não calcula recompensas: XP/moedas/baú vêm do servidor; cache do último estado só para abrir offline, limpo ao trocar de conta | complemento §3 |
+| D41 | Pixel art original de 5 monstros, 5 chefes e 5 cenários (`domain/sprites.ts`); chefes bloqueados em cinza | complemento §2 |
+
+| Verificação | Resultado |
+|---|---|
+| Backend `mvnw test` (inclui teste A–E de jogo com 2 contas) | 35/35 |
+| Mobile `npm test` | 24/24 |
+| E2E contra a API real local (`testes/e2e-api.mjs`) | 19/19 |
+| `tsc`, `expo lint`, `expo export` produção | OK |
+
+---
+
+## Revisão técnica pré-produção (18/11/2026)
+
+### Regra aprovada pela equipe (NÃO é exigência original do documento)
+**D42 — Crescimento de atributos por nível:** +2 Força, +2 Agilidade, +10 Vida a cada nível (base nível 1: Força 10, Agilidade 0, Vida 100). O RF19/RF24 não definem esses valores; é decisão da equipe.
+- Implementação: `backend/.../util/RegrasAvatar.java` (servidor, fonte oficial) e `mobile/src/domain/jogo.ts` → `aplicarXp` (modo local).
+- RN10: agilidade = 2 × (nível − 1) ⇒ multiplicador = 1 + 0,01 × (nível − 1), teto de 1,5 a partir do nível 51.
+- RN12: força base = 10 + 2 × (nível − 1), somada aos bônus dos itens equipados; a vida não entra na RN12 (só na esteira visual).
+
+### Problemas encontrados e corrigidos
+| # | Problema | Correção |
+|---|---|---|
+| R1 | CPFs de produção estão em texto puro **com máscara** (o Web grava assim); a busca legada só tentava dígitos → usuários do Web não entrariam após o deploy | Busca legada tenta: como digitado, só dígitos e com máscara (`CpfCriptografia.variantesLegado`) |
+| R2 | Servidor em UTC (Render) × datas do app em horário de Brasília → janela de 24 h (RN11/RN12) com 3 h de erro e ataque bloqueado indevidamente | JVM fixada em `America/Sao_Paulo` (`BackendApplication`) |
+| R3 | Rollback do deploy quebraria logins de quem já tivesse o CPF migrado | Migração do CPF legado controlada por `CPF_MIGRAR_LEGADO` (padrão `false` em produção) |
+| R4 | Troca de conta no aparelho mantinha lembretes de água e falas do Hermes do usuário anterior | `sair()` cancela lembretes e reinicia o Hermes |
+| R5 | Produção atual assina JWT com a chave padrão do código (bloco `api:` aninhado em `spring:` no `main`) e o subject é o CPF | Corrigido nesta branch (chave por `JWT_SECRET`, subject = id); **só vale após o deploy** |
+
+| Verificação | Resultado |
+|---|---|
+| Backend `mvnw test` (inclui `RevisaoProducaoIntegracaoTest`) | 38/38 |
+| Mobile `npm test`, `tsc`, `lint` | 24/24, OK |

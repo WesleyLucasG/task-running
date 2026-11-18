@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EXTRAS_FORA_DO_MVP } from '../config/escopo';
 import { cores, fontes } from '../theme';
 
 // Barra inferior do Figma: HOME, MAP, INVENTORY, SHOP com traço laranja na aba ativa.
@@ -23,6 +24,7 @@ export function BarraAbas({ state, emitter, navigateToTab }: BottomTabBarProps) 
       {state.routes.map((rota, i) => {
         const aba = ABAS[rota.name];
         if (!aba) return null;
+        if (rota.name === 'loja' && !EXTRAS_FORA_DO_MVP) return null; // Loja: roadmap (§2.4)
         const ativa = state.index === i;
         const cor = ativa ? cores.laranja : cores.textoSuave;
         return (

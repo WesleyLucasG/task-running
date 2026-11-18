@@ -8,6 +8,7 @@ import { Campo } from '../components/Campo';
 import { Aparencia, SeletorAparencia } from '../components/SeletorAparencia';
 import { atualizarAparencia, obterJogador } from '../db/jogo';
 import { useAuth } from '../state/AuthContext';
+import { hermesFalar } from '../state/hermes';
 import { cores, espaco, fontes } from '../theme';
 
 // Figma "Criação de Personagem" (3:806). RF11: personalização do avatar.
@@ -20,9 +21,20 @@ export default function CriarPersonagem() {
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
+    hermesFalar('ajuda-personagem', 'Escolha gênero, cabelo, cores e detalhe do traje. Você pode mudar depois no Perfil.', 'apresentando');
+  }, []);
+
+  useEffect(() => {
     if (!usuario) return;
     obterJogador(usuario.id).then(({ avatar }) =>
-      setAparencia({ genero: avatar.genero, cabelo: avatar.cabelo, corPele: avatar.corPele, corRoupa: avatar.corRoupa }),
+      setAparencia({
+        genero: avatar.genero,
+        cabelo: avatar.cabelo,
+        corPele: avatar.corPele,
+        corRoupa: avatar.corRoupa,
+        corCabelo: avatar.corCabelo,
+        detalheRoupa: avatar.detalheRoupa,
+      }),
     );
   }, [usuario]);
 

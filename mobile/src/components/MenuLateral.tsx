@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { xpParaProximoNivel } from '../domain/jogo';
 import { useAuth } from '../state/AuthContext';
 import { useJogador } from '../state/useJogador';
+import { EXTRAS_FORA_DO_MVP } from '../config/escopo';
 import { cores, espaco, fontes } from '../theme';
 import { AvatarPixel } from './AvatarPixel';
 import { BarraProgresso } from './BarraProgresso';
@@ -22,8 +23,9 @@ type Item = {
 // Ordem e rótulos idênticos ao Figma ("Menu Lateral")
 const ITENS: Item[] = [
   { rotulo: 'Meu Perfil', icone: 'person-outline', destino: '/perfil' },
-  { rotulo: 'Árvore de Atributos', icone: 'shield-outline', destino: '/atributos' },
-  { rotulo: 'Loja de Itens', icone: 'bag-handle-outline', destino: '/loja' },
+  // Árvore de habilidades e loja: roadmap (§2.4) — bloqueadas fora do modo extras
+  { rotulo: 'Árvore de Atributos', icone: 'shield-outline', destino: '/atributos', bloqueado: !EXTRAS_FORA_DO_MVP },
+  { rotulo: 'Loja de Itens', icone: 'bag-handle-outline', destino: '/loja', bloqueado: !EXTRAS_FORA_DO_MVP },
   { rotulo: 'Mapa do Mundo', icone: 'map-outline', destino: '/mapa' },
   { rotulo: 'Conquistas', icone: 'trophy-outline', bloqueado: true },
   { rotulo: 'Notificações', icone: 'notifications-outline', destino: '/hidratacao' },
@@ -65,6 +67,8 @@ export function MenuLateral({ visivel, aoFechar }: { visivel: boolean; aoFechar:
                     cabelo={avatar.cabelo}
                     corPele={avatar.corPele}
                     corRoupa={avatar.corRoupa}
+                    corCabelo={avatar.corCabelo}
+                    detalheRoupa={avatar.detalheRoupa}
                     tamanho={30}
                   />
                 )}

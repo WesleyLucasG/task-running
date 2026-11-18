@@ -1,6 +1,8 @@
 import * as Crypto from 'expo-crypto';
 import type { Ponto } from '../domain/geo';
 import { getDb } from '.';
+import { cifrarPonto, decifrarPonto } from '../domain/cifraGps';
+import { chaveGps, novoNonce } from './chaveGps';
 
 
 export type TipoAtividade = 'CORRIDA' | 'CAMINHADA';
@@ -65,12 +67,14 @@ export async function iniciarAtividade(
   return id;
 }
 
+// RNF11: a coordenada é gravada criptografada; latitude/longitude em claro ficam zeradas.
 export async function salvarPonto(atividadeId: string, p: Ponto): Promise<void> {
   const db = await getDb();
+  const cifrado = cifrarPonto(await chaveGps(), novoNonce(), p, atividadeId);
   await db.runAsync(
-    `INSERT INTO pontos_gps (atividade_id, latitude, longitude, altitude, timestamp)
-     VALUES (?, ?, ?, ?, ?)`,
-    [atividadeId, p.latitude, p.longitude, p.altitude, p.timestamp],
+    `INSERT INTO pontos_gps (atividade_id, latitude, longitude, altitude, timestamp, dados_cifrados)
+     VALUES (?, 0, 0, NULL, ?, ?)`,
+    [atividadeId, p.timestamp, cifrado],
   );
 }
 
@@ -122,11 +126,38 @@ export async function buscarAtividade(id: string, usuarioId: string): Promise<At
 
 export async function listarPontos(atividadeId: string): Promise<Ponto[]> {
   const db = await getDb();
-  return db.getAllAsync<Ponto>(
-    `SELECT latitude, longitude, altitude, timestamp
+  const chave = await chaveGps();
+  const linhas = await db.getAllAsync<{
+    id: number;
+    latitude: number;
+    longitude: number;
+    altitude: number | null;
+    timestamp: number;
+    dados_cifrados: string | null;
+  }>(
+    `SELECT id, latitude, longitude, altitude, timestamp, dados_cifrados
        FROM pontos_gps WHERE atividade_id = ? ORDER BY timestamp ASC`,
     [atividadeId],
   );
+  const pontos: Ponto[] = [];
+  for (const l of linhas) {
+    if (l.dados_cifrados) {
+      try {
+        pontos.push({ ...decifrarPonto(chave, l.dados_cifrados, atividadeId), timestamp: l.timestamp });
+      } catch {
+        console.warn('Ponto GPS adulterado ou ilegível foi descartado.'); // RNF11
+      }
+      continue;
+    }
+    // Ponto antigo, gravado antes da criptografia: migra agora para o formato cifrado
+    const p = { latitude: l.latitude, longitude: l.longitude, altitude: l.altitude };
+    await db.runAsync(
+      `UPDATE pontos_gps SET dados_cifrados = ?, latitude = 0, longitude = 0, altitude = NULL WHERE id = ?`,
+      [cifrarPonto(chave, novoNonce(), p, atividadeId), l.id],
+    );
+    pontos.push({ ...p, timestamp: l.timestamp });
+  }
+  return pontos;
 }
 
 export async function excluirAtividade(id: string, usuarioId: string): Promise<void> {
@@ -148,4 +179,25 @@ export async function listarPendentesSync(usuarioId: string): Promise<Atividade[
 export async function marcarSincronizada(id: string): Promise<void> {
   const db = await getDb();
   await db.runAsync(`UPDATE atividades SET sincronizado = 1 WHERE id = ?`, [id]);
+}
+// RN16: atividades com algo a enviar — em andamento (delta de pontos) ou concluídas e pendentes (RN05)
+export async function listarParaSincronizar(usuarioId: string): Promise<Atividade[]> {
+  const db = await getDb();
+  const linhas = await db.getAllAsync<Linha>(
+    `SELECT * FROM atividades
+      WHERE usuario_id = ? AND sincronizado = 0 AND status IN ('EM_ANDAMENTO', 'CONCLUIDA')
+      ORDER BY data_inicio ASC`,
+    [usuarioId],
+  );
+  return linhas.map(mapear);
+}
+
+// Atividade que ficou em andamento (ex.: o app foi fechado no meio da corrida)
+export async function buscarEmAndamento(usuarioId: string): Promise<Atividade | null> {
+  const db = await getDb();
+  const l = await db.getFirstAsync<Linha>(
+    `SELECT * FROM atividades WHERE usuario_id = ? AND status = 'EM_ANDAMENTO' ORDER BY data_inicio DESC LIMIT 1`,
+    [usuarioId],
+  );
+  return l ? mapear(l) : null;
 }

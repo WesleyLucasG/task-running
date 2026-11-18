@@ -1,3 +1,5 @@
+import { apiConfigurada } from '../services/api';
+import * as HidratacaoRemota from '../services/hidratacaoRemota';
 import * as Crypto from 'expo-crypto';
 import { diaLocal } from '../domain/datas';
 import { aplicarXp, XP_POR_100ML_AGUA } from '../domain/jogo';
@@ -20,6 +22,7 @@ export async function registrarConsumo(
   quantidadeMl: number,
   metaMl: number,
 ): Promise<ResultadoConsumo> {
+  if (apiConfigurada()) return HidratacaoRemota.registrar(quantidadeMl);
   // UC04, passo 4: quantidade precisa ser maior que zero
   if (!Number.isFinite(quantidadeMl) || quantidadeMl <= 0) {
     throw new Error('Informe uma quantidade maior que zero.');
@@ -89,6 +92,7 @@ export async function registrarConsumo(
 }
 
 export async function totalDoDia(usuarioId: string): Promise<number> {
+  if (apiConfigurada()) return HidratacaoRemota.totalDoDia();
   const db = await getDbLoja();
   const l = await db.getFirstAsync<{ total: number }>(
     `SELECT COALESCE(SUM(quantidade_ml), 0) AS total
@@ -100,6 +104,7 @@ export async function totalDoDia(usuarioId: string): Promise<number> {
 
 // RF30: histórico agrupado por data
 export async function historicoPorDia(usuarioId: string, limite = 14): Promise<DiaHidratacao[]> {
+  if (apiConfigurada()) return HidratacaoRemota.historico(limite);
   const db = await getDbLoja();
   const linhas = await db.getAllAsync<{ dia: string; total: number }>(
     `SELECT dia, SUM(quantidade_ml) AS total

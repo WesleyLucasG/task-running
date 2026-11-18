@@ -7,6 +7,7 @@ import type { RaridadeBauDrop } from '../domain/recompensas';
 import { ContextoIdle, obterContextoIdle } from '../db/heroi';
 import { Estado, Evento, novaVolta, passo } from '../domain/idle';
 import { useAuth } from './AuthContext';
+import { EXTRAS_FORA_DO_MVP } from '../config/escopo';
 import { avisarJogadorAlterado } from './sinais';
 
 const TICK_MS = 100;
@@ -78,7 +79,10 @@ export function useEsteira() {
       const chefe = ctx.fase?.chefe.nome ?? 'O chefe';
       const monstro = ctx.fase?.monstro.nome ?? 'Monstro';
       for (const ev of eventos) {
-        if (ev.tipo === 'MONSTRO_DERROTADO') {
+        if (ev.tipo === 'MONSTRO_DERROTADO' && !EXTRAS_FORA_DO_MVP) {
+          registrar(`${monstro} derrotado!`);
+        }
+        if (ev.tipo === 'MONSTRO_DERROTADO' && EXTRAS_FORA_DO_MVP) {
           // D19: moedas sempre + 20% de chance de baú (sem XP: RF18)
           recompensarMonstroDerrotado(usuario.id, ctx.contexto.fase)
             .then((r) => {

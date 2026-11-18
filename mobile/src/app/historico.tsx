@@ -40,12 +40,13 @@ export default function Historico() {
         return;
       }
       const r = await sincronizarPendentes(usuario.id);
-      const total = r.enviadas + r.jaProcessadas;
-      if (total === 0 && r.falhas === 0) setMensagem('Nada pendente para sincronizar.');
+      const total = r.enviadas;
+      if (total === 0 && r.falhas === 0 && r.aguardando === 0) setMensagem('Nada pendente para sincronizar.');
       else
         setMensagem(
           `${total} atividade(s) sincronizada(s)` +
-            (r.falhas ? `; ${r.falhas} falharam e seguem pendentes.` : '.'),
+            (r.falhas ? `; ${r.falhas} com falha, nova tentativa automática em instantes.` : '') +
+            (r.aguardando ? `; ${r.aguardando} aguardando conexão.` : '.'),
         );
       await carregar();
     } finally {

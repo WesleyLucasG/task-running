@@ -10,8 +10,12 @@ import { concluirAtividadeComRecompensa } from '../../db/jogo';
 import type { FaseCatalogo } from '../../domain/fases';
 import { calcularPace, estimarCalorias } from '../../domain/geo';
 import { POSICOES_MONSTROS } from '../../domain/idle';
+import { apiConfigurada } from '../../services/api';
+import { sincronizarPendentes } from '../../services/sincronizacao';
 import { useAuth } from '../../state/AuthContext';
 import { avisarJogadorAlterado } from '../../state/sinais';
+import { SpritePixel } from '../../components/SpritePixel';
+import { SPRITES_FASE } from '../../domain/sprites';
 import { cores, espaco, fontes } from '../../theme';
 
 // Rótulos de bioma em inglês, como no Figma ("FOREST • 5 MONSTROS")
@@ -58,6 +62,7 @@ export default function Mapa() {
         calorias: estimarCalorias(usuario.peso, metros, 'CAMINHADA'),
         paceMedio: calcularPace(metros, duracao),
       });
+      await sincronizarPendentes(usuario.id); // RN11(b): conta só depois de sincronizada
       await carregar();
       avisarJogadorAlterado();
     } catch (e) {
@@ -125,7 +130,7 @@ export default function Mapa() {
           <Botao titulo="INICIAR CORRIDA DE TREINO" onPress={() => router.push('/corrida')} estilo={{ alignSelf: 'stretch' }} />
         </View>
 
-        {__DEV__ && (
+        {__DEV__ && !apiConfigurada() && (
           <View style={estilos.demo}>
             <Text style={estilos.textoDetectados}>MODO DEMONSTRAÇÃO (ATIVIDADE SIMULADA)</Text>
             <View style={{ flexDirection: 'row', gap: espaco.md }}>
@@ -150,7 +155,11 @@ function CartaoFase({
   bioma: string;
   atual: EstadoMapa['atual'];
 }) {
-  const tag = TAG[situacao];
+  // Estado real da fase (RN11): a tag vem das regras, não de contador visual
+  let tag = TAG[situacao];
+  if (situacao === 'CONCLUIDA') tag = { ...tag, texto: 'CHEFE DERROTADO' };
+  else if (atual?.chefeLiberado && atual.podeAtacar) tag = { texto: 'CHEFE LIBERADO', fundo: cores.erro, cor: cores.texto };
+  else if (atual?.chefeLiberado) tag = { texto: 'META ATINGIDA', fundo: cores.dourado, cor: cores.fundo };
   const bloqueada = situacao === 'BLOQUEADA';
   const pct = atual ? Math.min(1, atual.acumuladaMetros / fase.metaDistanciaMetros) : 0;
 
@@ -159,13 +168,23 @@ function CartaoFase({
       {/* Cena da fase: cores do cenário, monstro e chefe (cadeado se bloqueada) */}
       <View style={[estilos.cena, { backgroundColor: bloqueada ? cores.fundo : fase.cenario.ceu }]}>
         {!bloqueada && <View style={[estilos.chaoCena, { backgroundColor: fase.cenario.chao }]} />}
-        {bloqueada ? (
-          <Ionicons name="lock-closed-outline" size={30} color={cores.textoSuave} />
-        ) : (
-          <Text style={estilos.criaturas}>
-            {fase.monstro.emoji}  {fase.chefe.emoji}
-          </Text>
+        {/* O chefe aparece mesmo bloqueado (apagado e com cadeado) */}
+        <View style={[estilos.criaturas, situacao === 'CONCLUIDA' && { opacity: 0.6 }]}>
+          <SpritePixel sprite={(SPRITES_FASE[fase.numero] ?? SPRITES_FASE[1]).cenario} tamanho={24} cinza={bloqueada} />
+          <SpritePixel sprite={(SPRITES_FASE[fase.numero] ?? SPRITES_FASE[1]).monstro} tamanho={30} cinza={bloqueada} />
+          <SpritePixel sprite={(SPRITES_FASE[fase.numero] ?? SPRITES_FASE[1]).chefe} tamanho={52} cinza={bloqueada} />
+        </View>
+        {bloqueada && (
+          <View style={estilos.cadeado}>
+            <Ionicons name="lock-closed" size={22} color={cores.texto} />
+          </View>
         )}
+        {situacao === 'CONCLUIDA' && (
+          <View style={estilos.cadeado}>
+            <Ionicons name="checkmark-circle" size={24} color={cores.sucesso} />
+          </View>
+        )}
+        <Text style={estilos.nomeChefeCena}>{fase.chefe.nome.toUpperCase()}</Text>
         <Text style={[estilos.tag, { backgroundColor: tag.fundo, color: tag.cor }]}>{tag.texto}</Text>
         {bloqueada && <Text style={estilos.meta}>META {km(fase.metaDistanciaMetros)} KM</Text>}
       </View>
@@ -201,6 +220,9 @@ function CartaoFase({
               <Text style={estilos.vidaChefe}>
                 Vida do chefe: {atual.vidaAtualChefe}/{fase.chefe.vidaMaxima}
               </Text>
+            )}
+            {atual.chefeLiberado && !atual.podeAtacar && !!atual.motivoBloqueio && (
+              <Text style={estilos.motivo}>{atual.motivoBloqueio}</Text>
             )}
           </View>
         )}
@@ -250,7 +272,7 @@ const estilos = StyleSheet.create({
   cartao: { borderWidth: 3, borderColor: cores.borda, backgroundColor: cores.superficie },
   cena: { height: 110, alignItems: 'center', justifyContent: 'center' },
   chaoCena: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 30 },
-  criaturas: { fontSize: 38 },
+  criaturas: { flexDirection: 'row', alignItems: 'flex-end', gap: espaco.md, marginBottom: 6 },
   tag: {
     position: 'absolute',
     top: espaco.sm,
@@ -280,6 +302,24 @@ const estilos = StyleSheet.create({
   rotuloMeta: { fontFamily: fontes.mono, color: cores.texto, fontSize: 10 },
   trilho: { height: 8, backgroundColor: cores.fundo, borderWidth: 1, borderColor: cores.borda },
   preenchido: { height: '100%', backgroundColor: cores.laranja },
+  cadeado: {
+    position: 'absolute',
+    padding: 6,
+    backgroundColor: '#0F172ACC',
+    borderWidth: 1,
+    borderColor: cores.bordaClara,
+  },
+  nomeChefeCena: {
+    position: 'absolute',
+    bottom: 6,
+    right: 8,
+    fontFamily: fontes.monoNegrito,
+    fontSize: 9,
+    color: cores.texto,
+    backgroundColor: '#0F172AAA',
+    paddingHorizontal: 4,
+  },
+  motivo: { fontFamily: fontes.texto, color: cores.dourado, fontSize: 11 },
   vidaChefe: { fontFamily: fontes.mono, color: cores.erro, fontSize: 10 },
   rodapeCartao: {
     flexDirection: 'row',
