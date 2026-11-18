@@ -34,3 +34,5 @@ app:
     cpf-chave: ${CPF_SECRET:dev-somente-local-troque-em-producao}
   cors:
     origens: ${CORS_ORIGENS:http://localhost:5173,http://localhost:3000}
+  email:
+    habilitado: false  # Em produção (application-prod.yaml) fica true e requer MAIL_HOST/USER/PASS

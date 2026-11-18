@@ -64,6 +64,9 @@ public class AuthService {
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Autowired(required = false)
+    private EmailService emailService;
+
     private final SecureRandom aleatorio = new SecureRandom();
 
     @Transactional
@@ -231,6 +234,11 @@ public class AuthService {
             resetToken.setUsado(false);
 
             passwordResetTokenRepository.save(resetToken);
+
+            if (emailService != null) {
+                emailService.enviarRecuperacaoSenha(usuario.getEmail(), usuario.getNome(), token);
+            }
+
             return token;
         }
         return null;
