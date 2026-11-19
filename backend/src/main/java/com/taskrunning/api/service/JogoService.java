@@ -1,5 +1,6 @@
 package com.taskrunning.api.service;
 
+import com.taskrunning.api.util.Relogio;
 import com.taskrunning.api.dto.request.AparenciaRequestDTO;
 import com.taskrunning.api.dto.request.AtacarChefeRequestDTO;
 import com.taskrunning.api.dto.response.*;
@@ -327,7 +328,7 @@ public class JogoService {
         boolean derrotado = vida <= 0;
 
         prog.setVidaAtualChefe(vida);
-        prog.setUltimoAtaqueEm(LocalDateTime.now());
+        prog.setUltimoAtaqueEm(Relogio.agora()); // mesmo relógio das datas do app
 
         String proximaFase = null;
         if (derrotado) {
@@ -368,7 +369,7 @@ public class JogoService {
 
     /** Maior distância (km) em atividades CONCLUIDAS nas últimas 24h (RN11/RN12). */
     private double maiorKmUltimas24h(Usuario usuario) {
-        LocalDateTime corte = LocalDateTime.now().minusHours(24);
+        LocalDateTime corte = Relogio.agora().minusHours(24); // dataFim vem em horário de Brasília
         return atividadeRepo
                 .findByUsuarioAndStatusAndDataFimAfter(
                         usuario, com.taskrunning.api.enums.StatusAtividade.CONCLUIDA, corte)

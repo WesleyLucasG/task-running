@@ -1,5 +1,6 @@
 package com.taskrunning.api.service;
 
+import com.taskrunning.api.util.Relogio;
 import com.taskrunning.api.dto.request.ConfigurarLembreteRequestDTO;
 import com.taskrunning.api.dto.request.RegistrarAguaRequestDTO;
 import com.taskrunning.api.dto.response.HidratacaoResponseDTO;
@@ -29,7 +30,7 @@ public class HidratacaoService {
     public java.util.List<com.taskrunning.api.dto.response.HistoricoHidratacaoDTO> historico(String cpfUsuario, int dias) {
         Usuario usuario = buscarUsuarioPorCpf(cpfUsuario);
         int n = Math.max(1, Math.min(dias, 90));
-        return registroRepository.historicoDesde(usuario.getId(), LocalDate.now().minusDays(n - 1L));
+        return registroRepository.historicoDesde(usuario.getId(), Relogio.hoje().minusDays(n - 1L));
     }
 
     private final ConfiguracaoHidratacaoRepository configuracaoRepository;
@@ -52,7 +53,7 @@ public class HidratacaoService {
         RegistroHidratacao novoRegistro = new RegistroHidratacao();
         novoRegistro.setUsuario(usuario);
         novoRegistro.setQuantidadeMl(dto.quantidadeMl());
-        novoRegistro.setDataRegistro(LocalDate.now());
+        novoRegistro.setDataRegistro(Relogio.hoje());
 
         registroRepository.save(novoRegistro);
         gamificacaoService.creditarXpHidratacao(usuario, dto.quantidadeMl()); // RN10
@@ -102,7 +103,7 @@ public class HidratacaoService {
         }
 
     private int obterConsumoDoDia(Long usuarioId) {
-        Integer totalConsumido = registroRepository.somarMlConsumidosNoDia(usuarioId, LocalDate.now());
+        Integer totalConsumido = registroRepository.somarMlConsumidosNoDia(usuarioId, Relogio.hoje());
         return (totalConsumido != null) ? totalConsumido : 0;
     }
 

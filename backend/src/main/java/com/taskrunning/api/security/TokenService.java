@@ -9,8 +9,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 
 @Service
 public class TokenService {
@@ -47,6 +45,7 @@ public class TokenService {
     }
 
     private Instant gerarDataExpiracao() {
-        return LocalDateTime.now().plusHours(HORAS_VALIDADE).toInstant(ZoneOffset.of("-03:00"));
+        // RNF07: 24 h exatas, independente do fuso do servidor (antes dava 27 h com a JVM em UTC)
+        return Instant.now().plus(java.time.Duration.ofHours(HORAS_VALIDADE));
     }
 }

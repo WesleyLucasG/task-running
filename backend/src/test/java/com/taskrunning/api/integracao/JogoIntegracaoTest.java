@@ -8,6 +8,7 @@ import com.taskrunning.api.entity.Usuario;
 import com.taskrunning.api.repository.InventarioItemRepository;
 import com.taskrunning.api.repository.ItemCatalogoRepository;
 import com.taskrunning.api.repository.UsuarioRepository;
+import com.taskrunning.api.util.Relogio;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -77,7 +78,7 @@ class JogoIntegracaoTest {
                 .get("token").asText();
     }
 
-    /** Corrida a ~6,7 km/h (111 m por minuto), plausível para a RNF12; termina em {@code fim}. */
+    /** Horários em Brasília, como o app envia (dataHoraLocal). Corrida a ~6,7 km/h (111 m por minuto), plausível para a RNF12; termina em {@code fim}. */
     private JsonNode correr(String token, int minutos, LocalDateTime fim) throws Exception {
         LocalDateTime inicio = fim.minusMinutes(minutos).truncatedTo(ChronoUnit.SECONDS);
         StringBuilder pontos = new StringBuilder();
@@ -107,7 +108,7 @@ class JogoIntegracaoTest {
         assertEquals(0, estado.get("bausPendentes").asInt());
 
         // Corrida de ~2,6 km (meta da fase 1 = 2 km)
-        JsonNode corrida = correr(a, 24, LocalDateTime.now().minusMinutes(5));
+        JsonNode corrida = correr(a, 24, Relogio.agora().minusMinutes(5));
         assertTrue(corrida.get("distanciaMetros").asDouble() > 2000, "corrida deve passar da meta");
 
         // RN13 (limitada à meta) + RF21 (chefe liberado com vida cheia) + RF22 (baú pela meta)
@@ -137,7 +138,7 @@ class JogoIntegracaoTest {
         // Cada nova corrida curta (horário de Brasília, depois do ataque) libera um novo golpe até vencer
         JsonNode vitoria = null;
         for (int rodada = 1; rodada <= 10 && vitoria == null; rodada++) {
-            correr(a, 3, LocalDateTime.now().plusMinutes(3L * rodada));
+            correr(a, 3, Relogio.agora().plusMinutes(3L * rodada));
             JsonNode golpe = enviar("/api/jogo/chefe/atacar", "{}", a, 200);
             assertTrue(golpe.get("vidaRestante").asInt() < vida, "a vida do chefe deve cair a cada golpe");
             vida = golpe.get("vidaRestante").asInt();
