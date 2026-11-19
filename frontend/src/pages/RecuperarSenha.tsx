@@ -1,16 +1,26 @@
-import { useState, FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, FormEvent, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Zap, Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
 import api, { getApiError } from '../services/api';
 
 export default function RecuperarSenha() {
-  const [step, setStep] = useState<1 | 2>(1);
+  const [searchParams] = useSearchParams();
+  const tokenFromUrl = searchParams.get('token') ?? '';
+
+  const [step, setStep] = useState<1 | 2>(tokenFromUrl ? 2 : 1);
   const [email, setEmail] = useState('');
-  const [token, setToken] = useState('');
+  const [token, setToken] = useState(tokenFromUrl);
   const [novaSenha, setNovaSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (tokenFromUrl) {
+      setToken(tokenFromUrl);
+      setStep(2);
+    }
+  }, [tokenFromUrl]);
 
   const handleStep1 = async (e: FormEvent) => {
     e.preventDefault();
