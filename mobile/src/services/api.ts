@@ -9,7 +9,8 @@ export const apiConfigurada = () => API_URL.length > 0;
 
 const CHAVE_ACESSO = 'tr.token.acesso';
 const CHAVE_REFRESH = 'tr.token.refresh';
-const TEMPO_LIMITE_MS = 15000;
+// O Render gratuito "dorme" sem uso e leva de 30 a 60 s para acordar: com 15 s a 1ª ação do dia falhava
+const TEMPO_LIMITE_MS = 60000;
 
 export class ErroApi extends Error {
   constructor(
@@ -59,10 +60,21 @@ async function chamar(caminho: string, op: Opcoes, token?: string): Promise<Resp
       signal: controle.signal,
     });
   } catch {
-    throw new ErroApi('Sem conexão com o servidor.', 0);
+    throw new ErroApi(
+      controle.signal.aborted
+        ? 'O servidor demorou para responder (pode estar iniciando). Tente novamente em instantes.'
+        : 'Sem conexão com o servidor. Verifique sua internet.',
+      0,
+    );
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Acorda o servidor ao abrir o app (sem esperar a resposta), para o login não pegar a partida a frio
+export function acordarServidor(): void {
+  if (!apiConfigurada()) return;
+  chamar('/api/saude', {}).catch(() => {});
 }
 
 // Mensagem padronizada do backend (ErrorResponseDTO.message / errors[].message), RNF25

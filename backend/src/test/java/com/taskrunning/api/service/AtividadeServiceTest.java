@@ -41,6 +41,7 @@ class AtividadeServiceTest {
     @Mock private PontoGpsRepository pontoGpsRepository;
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private GamificacaoService gamificacaoService;
+    @Mock private JogoService jogoService;
 
     @InjectMocks
     private AtividadeService atividadeService;
@@ -96,6 +97,7 @@ class AtividadeServiceTest {
         assertEquals(5L, r.id());
         verify(atividadeRepository, never()).save(any());
         verify(gamificacaoService, never()).creditarRecompensaAtividade(any(), anyInt(), anyDouble());
+        verify(jogoService, never()).registrarDistancia(any(), anyDouble()); // RN04: fase não recebe 2x
     }
 
     @Test
@@ -135,6 +137,7 @@ class AtividadeServiceTest {
         assertEquals(120L, r.duracaoSegundos());
         assertTrue(r.distanciaMetros() > 215 && r.distanciaMetros() < 230, "distância " + r.distanciaMetros());
         verify(gamificacaoService, times(1)).creditarRecompensaAtividade(eq(usuario), anyInt(), anyDouble());
+        verify(jogoService, times(1)).registrarDistancia(eq(usuario), anyDouble()); // RF20–RF22
     }
 
     @Test

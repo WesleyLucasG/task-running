@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import * as Auth from '../domain/auth';
-import { quandoSessaoExpirar } from '../services/api';
+import { acordarServidor, quandoSessaoExpirar } from '../services/api';
 import { cancelarLembretes } from '../services/lembretes';
 import { hermesReiniciar } from './hermes';
 
@@ -46,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Refresh token vencido/revogado (RNF07): volta para a tela de login
   useEffect(() => quandoSessaoExpirar(() => setUsuario(null)), []);
+  useEffect(() => acordarServidor(), []);
 
   useEffect(() => {
     Promise.all([Auth.carregarSessao(), AsyncStorage.getItem(CHAVE_INTRO)])

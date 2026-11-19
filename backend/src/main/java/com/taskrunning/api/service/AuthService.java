@@ -19,6 +19,7 @@ import com.taskrunning.api.repository.RefreshTokenRepository;
 import com.taskrunning.api.repository.UsuarioRepository;
 import com.taskrunning.api.security.CpfCriptografia;
 import com.taskrunning.api.security.TokenService;
+import com.taskrunning.api.util.Auditoria;
 import com.taskrunning.api.util.CpfValidator;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -120,6 +121,7 @@ public class AuthService {
         config.setMetaDiariaMl(metaDiaria);
         config.setLembreteAtivo(true);
         configuracaoHidratacaoRepository.save(config);
+        Auditoria.registrar("CADASTRO", dono.getEmail(), "SUCESSO usuario_id=" + dono.getId());
     }
 
     /**
@@ -131,11 +133,15 @@ public class AuthService {
      */
     @Transactional(dontRollbackOn = AutenticacaoException.class)
     public TokenResponseDTO login(LoginDTO dto) {
-        Usuario usuario = localizarPorCpf(dto.cpf())
-                .orElseThrow(() -> new AutenticacaoException(CREDENCIAIS_INVALIDAS));
+        Usuario usuario = localizarPorCpf(dto.cpf()).orElse(null);
+        if (usuario == null) {
+            Auditoria.registrar("LOGIN", null, "FALHA cpf_nao_cadastrado"); // RNF18 (CPF não é registrado)
+            throw new AutenticacaoException(CREDENCIAIS_INVALIDAS);
+        }
 
         LocalDateTime agora = LocalDateTime.now();
         if (usuario.getBloqueadoAte() != null && usuario.getBloqueadoAte().isAfter(agora)) {
+            Auditoria.registrar("LOGIN", usuario.getEmail(), "RECUSADO conta_bloqueada");
             long minutos = Math.max(1, ChronoUnit.MINUTES.between(agora, usuario.getBloqueadoAte()) + 1);
             throw new AutenticacaoException("Acesso bloqueado por tentativas inválidas. Tente novamente em " + minutos + " min.");
         }
@@ -146,10 +152,12 @@ public class AuthService {
                 usuario.setTentativasFalhas(0);
                 usuario.setBloqueadoAte(agora.plusMinutes(MINUTOS_BLOQUEIO));
                 usuarioRepository.save(usuario);
+                Auditoria.registrar("LOGIN", usuario.getEmail(), "FALHA senha_incorreta bloqueio_" + MINUTOS_BLOQUEIO + "min");
                 throw new AutenticacaoException("Muitas tentativas inválidas. Acesso bloqueado por " + MINUTOS_BLOQUEIO + " minutos.");
             }
             usuario.setTentativasFalhas(falhas);
             usuarioRepository.save(usuario);
+            Auditoria.registrar("LOGIN", usuario.getEmail(), "FALHA senha_incorreta tentativa=" + falhas);
             throw new AutenticacaoException(CREDENCIAIS_INVALIDAS);
         }
 
@@ -157,6 +165,7 @@ public class AuthService {
         usuario.setBloqueadoAte(null);
         migrarCpfSeNecessario(usuario);
         usuarioRepository.save(usuario);
+        Auditoria.registrar("LOGIN", usuario.getEmail(), "SUCESSO");
         return emitirTokens(usuario);
     }
 
@@ -233,7 +242,10 @@ public class AuthService {
     public String recuperarSenha(ForgotPasswordDTO dto) {
         String email = dto.email() == null ? "" : dto.email().trim();
         Optional<Usuario> usuarioOpt = usuarioRepository.findFirstByEmailAndAtivoTrue(email);
-        if (usuarioOpt.isEmpty()) return null;
+        if (usuarioOpt.isEmpty()) {
+            Auditoria.registrar("RECUPERACAO_SENHA", email, "IGNORADA email_nao_cadastrado");
+            return null;
+        }
 
         Usuario usuario = usuarioOpt.get();
         LocalDateTime agora = LocalDateTime.now();
@@ -247,6 +259,7 @@ public class AuthService {
         if (resetToken.getId() != null && !resetToken.isUsado() && resetToken.getDataExpiracao() != null) {
             LocalDateTime criadoEm = resetToken.getDataExpiracao().minusMinutes(MINUTOS_VALIDADE_RECUPERACAO);
             if (criadoEm.plusSeconds(SEGUNDOS_ENTRE_ENVIOS).isAfter(agora)) {
+                Auditoria.registrar("RECUPERACAO_SENHA", email, "IGNORADA intervalo_minimo");
                 return null;
             }
         }
@@ -263,6 +276,7 @@ public class AuthService {
         if (emailService != null) {
             emailService.enviarRecuperacaoSenha(usuario.getEmail(), usuario.getNome(), codigo);
         }
+        Auditoria.registrar("RECUPERACAO_SENHA", email, "CODIGO_GERADO validade_" + MINUTOS_VALIDADE_RECUPERACAO + "min");
         return codigo;
     }
 
@@ -286,6 +300,7 @@ public class AuthService {
 
         resetToken.setUsado(true); // RF07: uso único
         passwordResetTokenRepository.save(resetToken);
+        Auditoria.registrar("ALTERACAO_SENHA", usuario.getEmail(), "SUCESSO via_recuperacao");
     }
 
     /**

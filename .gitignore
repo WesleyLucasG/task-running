@@ -37,3 +37,5 @@ out/
 # Frontend env local (nunca commitar)
 frontend/.env
 frontend/.env.local
+# APK gerado localmente para entrega (não versionar binário de 68 MB)
+entrega/*.apk

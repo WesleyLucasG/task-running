@@ -117,15 +117,70 @@ ok(outro.status === 401 || outro.status === 403, 'sem token válido não acessa 
 const ren = await chamar('/auth/refresh', { metodo: 'POST', corpo: { refreshToken: login.corpo.refreshToken } });
 ok(ren.status === 200, 'RNF07: renovação do token');
 
-// RPG no servidor: aparência e estado coerentes com a corrida sincronizada
+// RPG no servidor: aparência e estado coerentes com a corrida sincronizada (mesmo contrato de services/jogoRemoto.ts)
 const ap = { genero: 'FEMININO', cabelo: 'COQUE', corCabelo: '#E3B862', corPele: '#8D5524', corRoupa: '#22C55E', detalheRoupa: 'FAIXA' };
 const salvo = await chamar('/api/jogo/aparencia', { metodo: 'PUT', token, corpo: ap });
 const relogin = await chamar('/auth/login', { metodo: 'POST', corpo: { cpf, senha: 'Senha@123' } });
-const lida = await chamar('/api/jogo/aparencia', { token: relogin.corpo.token });
-ok(salvo.status === 200 && JSON.stringify(lida.corpo) === JSON.stringify(ap), 'aparência salva no servidor e recuperada após novo login');
-const est = await chamar('/api/jogo/estado', { token: relogin.corpo.token });
+const token2 = relogin.corpo.token;
+let est = await chamar('/api/jogo/estado', { token: token2 });
+ok(salvo.status === 204 && JSON.stringify(est.corpo.aparencia) === JSON.stringify(ap), 'RF11: aparência salva no servidor e recuperada após novo login');
 ok(est.corpo.carteira.moedas === carteira1.corpo.moedas, 'estado do jogo usa a MESMA carteira (sem economia paralela)');
-ok(Math.abs(est.corpo.fases[0].distanciaAcumuladaMetros - Math.min(fin.corpo.distanciaMetros, 2000)) < 0.01, 'distância da corrida entrou na fase 1 (RN13)');
-ok(est.corpo.fases[1].situacao === 'BLOQUEADA' && est.corpo.fases[4].chefeNome === 'Hidra', 'chefes das fases futuras visíveis e bloqueados');
+ok(Math.abs(est.corpo.fases[0].distanciaAcumuladaMetros - Math.min(fin.corpo.distanciaMetros, 2000)) < 0.01, 'RN13: distância da corrida entrou na fase 1');
+ok(est.corpo.fases.length === 5 && est.corpo.fases[4].situacao === 'BLOQUEADA', 'RF20: mapa com as 5 fases, futuras bloqueadas');
+ok(!est.corpo.fases[0].chefeLiberado && est.corpo.chefeAtual.podeAtacar === false, 'RF21: chefe ainda bloqueado antes da meta');
+
+// Segunda corrida (~1,3 km) completa a meta de 2 km da fase 1
+async function correr(metros, deslocamentoMs) {
+  const id = randomUUID();
+  const t0 = Date.now() + deslocamentoMs;
+  const n = Math.ceil(metros / 3);
+  const pts = Array.from({ length: n }, (_, i) => ({ latitude: -18.95 - i * 0.000027, longitude: -48.27, altitude: 800, timestamp: t0 + i * 1000 }));
+  return chamar('/api/atividades/sincronizar', {
+    metodo: 'POST',
+    token: token2,
+    corpo: { identificadorLocal: id, tipoAtividade: 'CORRIDA', dataInicio: dataHoraLocal(t0), dataFim: dataHoraLocal(t0 + n * 1000), duracaoSegundos: n, pontosGps: pts.map(pontoParaApi) },
+  });
+}
+const c2 = await correr(1300, -500_000);
+ok(c2.status === 201, 'segunda corrida sincronizada');
+est = await chamar('/api/jogo/estado', { token: token2 });
+ok(est.corpo.fases[0].chefeLiberado && est.corpo.fases[0].vidaAtualChefe === 30, 'RF21: meta atingida libera o chefe com vida cheia (RN15)');
+ok(est.corpo.bausPendentes === 1, 'RF22: baú concedido pela meta de distância');
+
+// UC11 + RN12: o app manda o dano da esteira; o servidor limita
+const limite = est.corpo.chefeAtual.danoEstimado;
+let atk = await chamar('/api/jogo/chefe/atacar', { metodo: 'POST', token: token2, corpo: { danoCausado: 99999 } });
+ok(atk.status === 200 && atk.corpo.dano === limite && atk.corpo.vidaRestante === 30 - limite, `RN12: dano limitado pelo servidor (${limite})`);
+const repetido = await chamar('/api/jogo/chefe/atacar', { metodo: 'POST', token: token2, corpo: {} });
+ok(repetido.status === 400 && /nova atividade/.test(repetido.corpo.message), 'UC11: novo ataque exige nova atividade');
+let rodada = 1;
+while (!atk.corpo.derrotado && rodada <= 10) {
+  await correr(150, rodada * 120_000);
+  atk = await chamar('/api/jogo/chefe/atacar', { metodo: 'POST', token: token2, corpo: {} });
+  rodada++;
+}
+ok(atk.corpo.derrotado && atk.corpo.proximaFase === 'Montanhas de Prata', 'chefe derrotado libera a fase 2');
+
+// RF22–RF26: baús, abertura no servidor, inventário, equipar/desequipar
+const baus = await chamar('/api/jogo/baus', { token: token2 });
+ok(baus.corpo.length === 2 && baus.corpo.some((b) => b.tipo === 'OURO'), 'RF22: baú Ouro pela vitória');
+const aberto = await chamar(`/api/jogo/baus/${baus.corpo[0].id}/abrir`, { metodo: 'POST', token: token2 });
+ok(aberto.status === 200 && aberto.corpo.nome && aberto.corpo.equipado === false, `RF24: baú aberto → ${aberto.corpo.nome} (${aberto.corpo.raridade})`);
+const reaberto = await chamar(`/api/jogo/baus/${baus.corpo[0].id}/abrir`, { metodo: 'POST', token: token2 });
+ok(reaberto.status === 400, 'o mesmo baú não abre duas vezes');
+const inv = await chamar('/api/jogo/inventario', { token: token2 });
+ok(inv.corpo.length === 1, 'RF25: item aparece no inventário');
+const eq = await chamar(`/api/jogo/inventario/${aberto.corpo.id}/equipar`, { metodo: 'PUT', token: token2 });
+est = await chamar('/api/jogo/estado', { token: token2 });
+ok(eq.status === 204 && est.corpo.atributos.bonusForca === aberto.corpo.bonusForca, 'RF26: equipar soma o bônus do item');
+
+// Isolamento: outra conta não vê nem mexe no que é de outra
+const cpfB = cpfAleatorio();
+await chamar('/auth/register', { metodo: 'POST', corpo: { nome: 'Outra Conta', email: `e2e-${cpfB}@olimpo.com`, senha: 'Senha@123', cpf: cpfB, peso: 60 } });
+const tokenB = (await chamar('/auth/login', { metodo: 'POST', corpo: { cpf: cpfB, senha: 'Senha@123' } })).corpo.token;
+const invB = await chamar('/api/jogo/inventario', { token: tokenB });
+const roubo = await chamar(`/api/jogo/inventario/${aberto.corpo.id}/equipar`, { metodo: 'PUT', token: tokenB });
+const bauAlheio = await chamar(`/api/jogo/baus/${baus.corpo[1].id}/abrir`, { metodo: 'POST', token: tokenB });
+ok(invB.corpo.length === 0 && roubo.status === 400 && bauAlheio.status === 400, 'conta B não acessa inventário nem baús da conta A');
 
 console.log(`\nE2E OK: ${passos} verificações.`);

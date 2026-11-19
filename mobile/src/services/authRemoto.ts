@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { DadosCadastro, DadosPerfil, Usuario } from '../domain/auth';
 import { somenteDigitos, validarCpf, validarEmail, validarSenha } from '../domain/validacoes';
-import { api, apagarTokens, ErroApi, lerTokens, salvarTokens } from './api';
+import { api, apagarTokens, lerTokens, salvarTokens } from './api';
 import { limparCache } from './jogoRemoto';
 
 // Autenticação real com o backend Spring Boot (UC01, UC02, UC03, UC08).
@@ -70,13 +70,16 @@ export async function carregarSessao(): Promise<Usuario | null> {
     await sair();
     return null;
   }
+  // Abre na hora com a cópia local e atualiza em segundo plano: o servidor pode levar até 1 min
+  // para acordar e a tela de abertura não deve esperar. Token inválido → quandoSessaoExpirar → login.
+  const bruto = await AsyncStorage.getItem(CHAVE_USUARIO);
+  if (bruto) {
+    buscarPerfil().catch(() => {});
+    return JSON.parse(bruto) as Usuario;
+  }
   try {
     return await buscarPerfil();
-  } catch (e) {
-    if (e instanceof ErroApi && e.semConexao) {
-      const bruto = await AsyncStorage.getItem(CHAVE_USUARIO);
-      return bruto ? (JSON.parse(bruto) as Usuario) : null;
-    }
+  } catch {
     return null;
   }
 }

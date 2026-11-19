@@ -19,6 +19,7 @@ import com.taskrunning.api.repository.AtividadeRepository;
 import com.taskrunning.api.repository.PontoGpsRepository;
 import com.taskrunning.api.repository.UsuarioRepository;
 import com.taskrunning.api.util.CalculoGeograficoUtil;
+import com.taskrunning.api.util.Auditoria;
 import com.taskrunning.api.util.HashPontosGps;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -45,6 +46,7 @@ public class AtividadeService {
     private final PontoGpsRepository pontoGpsRepository;
     private final UsuarioRepository usuarioRepository;
     private final GamificacaoService gamificacaoService;
+    private final JogoService jogoService;
 
     /**
      * UC09: finaliza (ou recebe de uma vez) a atividade. Idempotente pelo identificadorLocal (RN04):
@@ -59,6 +61,7 @@ public class AtividadeService {
 
         Atividade atividade = atividadeDoUsuario(usuario, dto.identificadorLocal());
         if (atividade != null && atividade.getStatus() != StatusAtividade.EM_ANDAMENTO) {
+            Auditoria.registrar("SINCRONIZACAO_ATIVIDADE", usuario.getEmail(), "REENVIO_IGNORADO atividade_id=" + atividade.getId());
             return mapearParaDTO(atividade); // RN04: já processada
         }
         if (atividade == null) {
@@ -82,6 +85,9 @@ public class AtividadeService {
 
         // RN10: a recompensa só é paga na transição para CONCLUIDA (uma única vez)
         gamificacaoService.creditarRecompensaAtividade(usuario, salva.getCalorias(), salva.getDistanciaMetros());
+        jogoService.registrarDistancia(usuario, salva.getDistanciaMetros()); // RF20–RF22: mapa e chefe
+        Auditoria.registrar("SINCRONIZACAO_ATIVIDADE", usuario.getEmail(), String.format(java.util.Locale.ROOT,
+                "CONCLUIDA atividade_id=%d distancia_m=%.1f", salva.getId(), salva.getDistanciaMetros()));
         return mapearParaDTO(salva);
     }
 

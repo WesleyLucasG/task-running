@@ -127,8 +127,15 @@ public class JogoService {
     public EstadoJogoResponseDTO obterEstado(Usuario usuario) {
         garantirProgressoInicial(usuario);
 
-        Carteira carteira = carteiraRepo.findByUsuarioId(usuario.getId())
-                .orElseThrow(() -> new BusinessRuleException("Carteira não encontrada."));
+        // Conta nova ainda sem corrida: carteira zerada (mesma regra do GamificacaoService), não erro 400
+        Carteira carteira = carteiraRepo.findByUsuarioId(usuario.getId()).orElseGet(() -> {
+            Carteira nova = new Carteira();
+            nova.setUsuario(usuario);
+            nova.setMoedas(0);
+            nova.setExperienciaXp(0L);
+            nova.setNivel(1);
+            return carteiraRepo.save(nova);
+        });
 
         int nivel = carteira.getNivel();
         AparenciaAvatar ap = aparenciaRepo.findByUsuarioId(usuario.getId())
@@ -138,10 +145,18 @@ public class JogoService {
         int bonusVida  = inventarioRepo.somaBonusVidaEquipado(usuario.getId());
 
         List<ProgressoFase> progressos = progressoRepo.findByUsuarioIdOrderByFaseNumeroAsc(usuario.getId());
-        List<EstadoJogoResponseDTO.FaseDTO> faseDTOs = progressos.stream()
-                .map(p -> new EstadoJogoResponseDTO.FaseDTO(
-                        p.getFaseNumero(), p.getSituacao(),
-                        p.getDistanciaAcumuladaMetros(), p.isChefeLiberado(), p.getVidaAtualChefe()))
+        // RF20: o mapa mostra todas as fases; as ainda não alcançadas vêm BLOQUEADAS (chefe visível)
+        java.util.Map<Integer, ProgressoFase> porNumero = new java.util.HashMap<>();
+        progressos.forEach(p -> porNumero.put(p.getFaseNumero(), p));
+        List<EstadoJogoResponseDTO.FaseDTO> faseDTOs = faseRepo.findAll().stream()
+                .sorted(java.util.Comparator.comparing(FaseCatalogo::getNumero))
+                .map(f -> {
+                    ProgressoFase p = porNumero.get(f.getNumero());
+                    return p == null
+                            ? new EstadoJogoResponseDTO.FaseDTO(f.getNumero(), SituacaoFase.BLOQUEADA, 0.0, false, f.getChefeVidaMaxima())
+                            : new EstadoJogoResponseDTO.FaseDTO(p.getFaseNumero(), p.getSituacao(),
+                                    p.getDistanciaAcumuladaMetros(), p.isChefeLiberado(), p.getVidaAtualChefe());
+                })
                 .toList();
 
         ProgressoFase atual = progressos.stream()
@@ -183,6 +198,37 @@ public class JogoService {
                 chefeDTO,
                 bausPendentes
         );
+    }
+
+    // ─── DISTÂNCIA DA CORRIDA → FASE ATUAL ───────────────────────────────────
+
+    /**
+     * Chamado uma única vez quando a atividade passa a CONCLUIDA (RN04).
+     * RN13: soma a distância na fase atual, limitada à meta. RF21: ao atingir a meta libera o chefe
+     * com a vida cheia (RN15). RF22: concede um baú Prata pela meta, uma única vez por fase.
+     * Mesma regra do modo local do app (mobile/src/db/fases.ts → registrarDistanciaNaFase).
+     */
+    @Transactional
+    public void registrarDistancia(Usuario usuario, double distanciaMetros) {
+        if (!(distanciaMetros > 0)) return;
+        garantirProgressoInicial(usuario);
+        ProgressoFase atual = progressoRepo
+                .findFirstByUsuarioIdAndSituacaoOrderByFaseNumeroAsc(usuario.getId(), SituacaoFase.ATUAL)
+                .orElse(null);
+        if (atual == null) return; // todas as fases concluídas
+        FaseCatalogo fase = faseRepo.findById(atual.getFaseNumero()).orElseThrow();
+
+        double meta = fase.getMetaDistanciaMetros();
+        atual.setDistanciaAcumuladaMetros(Math.min(atual.getDistanciaAcumuladaMetros() + distanciaMetros, meta));
+        if (!atual.isChefeLiberado() && atual.getDistanciaAcumuladaMetros() >= meta) {
+            atual.setChefeLiberado(true);
+            atual.setVidaAtualChefe(fase.getChefeVidaMaxima());
+            if (!atual.isBauMetaConcedido()) {
+                atual.setBauMetaConcedido(true);
+                concederBau(usuario, TipoBau.PRATA);
+            }
+        }
+        progressoRepo.save(atual);
     }
 
     // ─── APARÊNCIA (/api/jogo/aparencia) ─────────────────────────────────────
@@ -243,6 +289,12 @@ public class JogoService {
     public void alternarEquipado(Usuario usuario, Long registroId) {
         InventarioItem item = inventarioRepo.findByIdAndUsuarioId(registroId, usuario.getId())
                 .orElseThrow(() -> new BusinessRuleException("Item não encontrado no inventário."));
+        if (!item.isEquipado()) {
+            // RF26 / UC10: cada slot (arma, capacete, armadura, botas) aceita um item; o anterior sai
+            inventarioRepo.findByUsuarioIdOrderByIdAsc(usuario.getId()).stream()
+                    .filter(o -> o.isEquipado() && o.getItem().getTipo() == item.getItem().getTipo())
+                    .forEach(o -> { o.setEquipado(false); inventarioRepo.save(o); });
+        }
         item.setEquipado(!item.isEquipado());
         inventarioRepo.save(item);
     }
