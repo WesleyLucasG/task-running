@@ -111,16 +111,21 @@ class EnvioEmailBrevoIntegracaoTest {
         JsonNode r = enviar("/auth/forgot-password", "{\"email\":\"ulisses@itaca.com\"}", 200);
         assertNull(r.get("tokenTeste"), "em produção o token só sai por e-mail");
 
-        String token = tokens.findAll().stream()
-                .filter(t -> "ulisses@itaca.com".equals(t.getUsuario().getEmail()))
-                .findFirst().orElseThrow().getToken();
         assertEquals(CHAVE, chaveRecebida.get());
         JsonNode corpo = json.readTree(corpoRecebido.get());
         assertEquals("remetente.verificado@exemplo.com", corpo.at("/sender/email").asText());
         assertEquals("ulisses@itaca.com", corpo.at("/to/0/email").asText());
         String html = corpo.get("htmlContent").asText();
-        assertTrue(html.contains("https://web.exemplo.com/reset-password?token=" + token));
-        assertTrue(html.contains(token), "código para colar no app");
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("Seu código de recuperação: (\\d{6})")
+                .matcher(corpo.get("subject").asText());
+        assertTrue(m.find(), "código de 6 dígitos no assunto");
+        String codigo = m.group(1);
+        assertTrue(html.matches("(?s).*>\\s*" + codigo + "\\s*</p>.*"), "código em destaque no corpo");
+        assertTrue(html.contains("https://web.exemplo.com/reset-password?email=ulisses%40itaca.com&amp;codigo=" + codigo));
+        assertFalse(tokens.findAll().stream().anyMatch(t -> codigo.equals(t.getToken())), "código não fica em texto puro");
+
+        // O código recebido por e-mail é aceito na etapa de validação
+        enviar("/auth/validar-codigo", "{\"email\":\"ulisses@itaca.com\",\"codigo\":\"" + codigo + "\"}", 204);
         assertTrue(html.contains("15 minutos"));
         assertTrue(html.contains("Ulisses &lt;b&gt;"), "nome escapado no HTML");
         assertFalse(corpoRecebido.get().contains(CHAVE), "a chave nunca vai no corpo");

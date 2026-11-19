@@ -42,9 +42,6 @@ const MAX_TENTATIVAS = 5; // RNF13
 const BLOQUEIO_MS = 15 * 60 * 1000; // RNF13
 const VALIDADE_TOKEN_MS = 15 * 60 * 1000; // RF06
 
-// 32 símbolos, sem I e O para não confundir com 1 e 0
-const ALFABETO = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-
 function hash(texto: string) {
   return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, texto);
 }
@@ -67,10 +64,14 @@ function publico({ senhaHash, cpfHash, ...usuario }: UsuarioSalvo): Usuario {
   return usuario;
 }
 
-function gerarCodigo(tamanho = 8): string {
-  const bytes = Crypto.getRandomBytes(tamanho); // aleatório seguro (RNF08)
+// Código de recuperação de 6 dígitos (mesmo formato do servidor), com aleatório seguro (RNF08)
+function gerarCodigoNumerico(): string {
   let codigo = '';
-  for (let i = 0; i < tamanho; i++) codigo += ALFABETO[bytes[i] % ALFABETO.length];
+  while (codigo.length < 6) {
+    for (const b of Crypto.getRandomBytes(12)) {
+      if (b < 250 && codigo.length < 6) codigo += String(b % 10); // descarta 250–255: sem viés
+    }
+  }
   return codigo;
 }
 
@@ -217,7 +218,7 @@ export async function solicitarRecuperacao(
     .filter((t) => t.expiraEm > agora)
     .map((t) => (t.usuarioId === usuario.id ? { ...t, usado: true } : t)); // só o último vale
 
-  const codigo = gerarCodigo();
+  const codigo = gerarCodigoNumerico(); // 6 dígitos, igual ao servidor
   tokens.push({
     usuarioId: usuario.id,
     tokenHash: await hash(codigo), // o código em si nunca é guardado
@@ -232,15 +233,30 @@ export async function solicitarRecuperacao(
   return { codigoSimulado: codigo };
 }
 
+// Etapa 2 (UC03): confere o código sem consumi-lo; só então a tela pede a nova senha
+export async function validarCodigoRecuperacao(emailBruto: string, codigoBruto: string): Promise<void> {
+  if (apiConfigurada()) return Remoto.validarCodigo(emailBruto, codigoBruto);
+  const email = emailBruto.trim().toLowerCase();
+  const codigoHash = await hash(codigoBruto.replace(/\s/g, ''));
+  const usuario = (await lerUsuarios()).find((u) => u.email === email);
+  const agora = Date.now();
+  const valido =
+    !!usuario &&
+    (await lerJson<TokenRecuperacao[]>(CHAVE_TOKENS, [])).some(
+      (t) => t.usuarioId === usuario.id && t.tokenHash === codigoHash && !t.usado && t.expiraEm > agora,
+    );
+  if (!valido) throw new Error('Código inválido ou expirado. Confira o e-mail ou solicite um novo.');
+}
+
 export async function redefinirSenha(
   emailBruto: string,
   codigoBruto: string,
   novaSenha: string,
   confirmar: string,
 ): Promise<void> {
-  if (apiConfigurada()) return Remoto.redefinirSenha(codigoBruto, novaSenha, confirmar);
+  if (apiConfigurada()) return Remoto.redefinirSenha(emailBruto, codigoBruto, novaSenha, confirmar);
   const email = emailBruto.trim().toLowerCase();
-  const codigo = codigoBruto.trim().toUpperCase();
+  const codigo = codigoBruto.replace(/\s/g, '');
 
   // UC03: senha fora do padrão não consome o token (RF08)
   const erroSenha = validarSenha(novaSenha);

@@ -5,6 +5,7 @@ import com.taskrunning.api.dto.request.ForgotPasswordDTO;
 import com.taskrunning.api.dto.request.LoginDTO;
 import com.taskrunning.api.dto.request.RefreshTokenRequestDTO;
 import com.taskrunning.api.dto.request.ResetPasswordDTO;
+import com.taskrunning.api.dto.request.ValidarCodigoDTO;
 import com.taskrunning.api.dto.response.TokenResponseDTO;
 import com.taskrunning.api.service.AuthService;
 import jakarta.validation.Valid;
@@ -64,6 +65,13 @@ public class AuthController {
             return ResponseEntity.ok(Map.of("mensagem", mensagem, "tokenTeste", token));
         }
         return ResponseEntity.ok(Map.of("mensagem", mensagem));
+    }
+
+    // Etapa 2 da recuperação: confere o código recebido por e-mail (204 = válido, sem consumir o código)
+    @PostMapping("/validar-codigo")
+    public ResponseEntity<Void> validarCodigo(@RequestBody @Valid ValidarCodigoDTO dto){
+        authService.validarCodigo(dto);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/reset-password")

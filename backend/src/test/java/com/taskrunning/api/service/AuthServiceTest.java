@@ -3,6 +3,8 @@ package com.taskrunning.api.service;
 import com.taskrunning.api.dto.request.CadastroUsuarioDTO;
 import com.taskrunning.api.dto.request.ForgotPasswordDTO;
 import com.taskrunning.api.dto.request.LoginDTO;
+import com.taskrunning.api.dto.request.ResetPasswordDTO;
+import com.taskrunning.api.dto.request.ValidarCodigoDTO;
 import com.taskrunning.api.dto.response.TokenResponseDTO;
 import com.taskrunning.api.entity.ConfiguracaoHidratacao;
 import com.taskrunning.api.entity.PasswordResetToken;
@@ -208,11 +210,14 @@ class AuthServiceTest {
         when(usuarioRepository.findFirstByEmailAndAtivoTrue(dto.email())).thenReturn(Optional.of(usuario));
         when(passwordResetTokenRepository.findByUsuario(usuario)).thenReturn(Optional.of(anterior));
 
-        String token = authService.recuperarSenha(dto);
+        String codigo = authService.recuperarSenha(dto);
 
-        assertNotNull(token);
-        assertNotEquals("token-antigo", token);
-        assertEquals(token, anterior.getToken());
+        assertNotNull(codigo);
+        assertTrue(codigo.matches("\\d{6}"), "código de 6 dígitos");
+        assertNotEquals("token-antigo", anterior.getToken());
+        assertNotEquals(codigo, anterior.getToken(), "o banco guarda só o hash do código");
+        assertEquals(64, anterior.getToken().length());
+        assertEquals(0, anterior.getTentativas());
         assertFalse(anterior.isUsado());
         assertTrue(anterior.getDataExpiracao().isAfter(LocalDateTime.now().plusMinutes(14)));
         assertTrue(anterior.getDataExpiracao().isBefore(LocalDateTime.now().plusMinutes(16)));
@@ -260,21 +265,93 @@ class AuthServiceTest {
         verifyNoInteractions(email);
     }
 
-    @Test
-    @DisplayName("Token já utilizado ou expirado não redefine a senha")
-    void tokenUsadoOuExpiradoEhRecusado() {
-        when(passwordResetTokenRepository.findByToken("usado"))
-                .thenReturn(Optional.of(tokenRecuperacao("usado", LocalDateTime.now().plusMinutes(5), true)));
-        when(passwordResetTokenRepository.findByToken("velho"))
-                .thenReturn(Optional.of(tokenRecuperacao("velho", LocalDateTime.now().minusSeconds(1), false)));
+    /** Gera um código real pelo serviço e devolve [código, registro gravado]. */
+    private Object[] gerarCodigo() {
+        when(usuarioRepository.findFirstByEmailAndAtivoTrue(usuario.getEmail())).thenReturn(Optional.of(usuario));
+        when(passwordResetTokenRepository.findByUsuario(usuario)).thenReturn(Optional.empty());
+        String codigo = authService.recuperarSenha(new ForgotPasswordDTO(usuario.getEmail()));
+        ArgumentCaptor<PasswordResetToken> salvo = ArgumentCaptor.forClass(PasswordResetToken.class);
+        verify(passwordResetTokenRepository).save(salvo.capture());
+        PasswordResetToken registro = salvo.getValue();
+        registro.setId(9L);
+        when(passwordResetTokenRepository.findByUsuario(usuario)).thenReturn(Optional.of(registro));
+        return new Object[]{codigo, registro};
+    }
 
+    private static String outroCodigo(String codigo) {
+        return codigo.equals("000000") ? "000001" : "000000";
+    }
+
+    @Test
+    @DisplayName("Validar código: correto passa sem consumir; errado é recusado; e-mail inexistente dá a mesma mensagem")
+    void validarCodigoNaoConsome() {
+        Object[] g = gerarCodigo();
+        String codigo = (String) g[0];
+        PasswordResetToken registro = (PasswordResetToken) g[1];
+
+        assertDoesNotThrow(() -> authService.validarCodigo(new ValidarCodigoDTO(usuario.getEmail(), " " + codigo + " ")));
+        assertFalse(registro.isUsado(), "validar não consome o código");
+
+        BusinessRuleException errado = assertThrows(BusinessRuleException.class,
+                () -> authService.validarCodigo(new ValidarCodigoDTO(usuario.getEmail(), outroCodigo(codigo))));
+        assertEquals(AuthService.CODIGO_INVALIDO, errado.getMessage());
+        assertEquals(1, registro.getTentativas());
+
+        when(usuarioRepository.findFirstByEmailAndAtivoTrue("ninguem@x.com")).thenReturn(Optional.empty());
+        BusinessRuleException inexistente = assertThrows(BusinessRuleException.class,
+                () -> authService.validarCodigo(new ValidarCodigoDTO("ninguem@x.com", codigo)));
+        assertEquals(AuthService.CODIGO_INVALIDO, inexistente.getMessage());
+    }
+
+    @Test
+    @DisplayName("5 códigos errados invalidam o código, mesmo o correto deixa de funcionar (anti força bruta)")
+    void cincoErrosInvalidamOCodigo() {
+        Object[] g = gerarCodigo();
+        String codigo = (String) g[0];
+        PasswordResetToken registro = (PasswordResetToken) g[1];
+
+        for (int i = 0; i < AuthService.MAX_TENTATIVAS_CODIGO; i++) {
+            assertThrows(BusinessRuleException.class,
+                    () -> authService.validarCodigo(new ValidarCodigoDTO(usuario.getEmail(), outroCodigo(codigo))));
+        }
+        assertTrue(registro.isUsado());
         assertThrows(BusinessRuleException.class,
-                () -> authService.redefinirSenha(new com.taskrunning.api.dto.request.ResetPasswordDTO("usado", "Nova@2026")));
-        assertThrows(BusinessRuleException.class,
-                () -> authService.redefinirSenha(new com.taskrunning.api.dto.request.ResetPasswordDTO("velho", "Nova@2026")));
-        assertThrows(BusinessRuleException.class,
-                () -> authService.redefinirSenha(new com.taskrunning.api.dto.request.ResetPasswordDTO("inexistente", "Nova@2026")));
+                () -> authService.redefinirSenha(new ResetPasswordDTO(usuario.getEmail(), codigo, "Nova@2026")));
         verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Código já utilizado ou expirado não redefine a senha")
+    void codigoUsadoOuExpiradoEhRecusado() {
+        Object[] g = gerarCodigo();
+        String codigo = (String) g[0];
+        PasswordResetToken registro = (PasswordResetToken) g[1];
+
+        registro.setDataExpiracao(LocalDateTime.now().minusSeconds(1));
+        BusinessRuleException expirado = assertThrows(BusinessRuleException.class,
+                () -> authService.redefinirSenha(new ResetPasswordDTO(usuario.getEmail(), codigo, "Nova@2026")));
+        assertTrue(expirado.getMessage().contains("expirou"));
+
+        registro.setDataExpiracao(LocalDateTime.now().plusMinutes(5));
+        registro.setUsado(true);
+        BusinessRuleException usado = assertThrows(BusinessRuleException.class,
+                () -> authService.redefinirSenha(new ResetPasswordDTO(usuario.getEmail(), codigo, "Nova@2026")));
+        assertTrue(usado.getMessage().contains("utilizado"));
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Redefinir com código válido grava a senha e invalida o código")
+    void redefinirComCodigoValido() {
+        Object[] g = gerarCodigo();
+        String codigo = (String) g[0];
+        PasswordResetToken registro = (PasswordResetToken) g[1];
+        when(passwordEncoder.encode("Nova@2026")).thenReturn("hashNovo");
+
+        authService.redefinirSenha(new ResetPasswordDTO(usuario.getEmail(), codigo, "Nova@2026"));
+
+        assertEquals("hashNovo", usuario.getSenha());
+        assertTrue(registro.isUsado());
     }
 
     private PasswordResetToken tokenRecuperacao(String valor, LocalDateTime expira, boolean usado) {

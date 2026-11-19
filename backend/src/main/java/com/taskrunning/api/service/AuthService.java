@@ -4,6 +4,7 @@ import com.taskrunning.api.dto.request.CadastroUsuarioDTO;
 import com.taskrunning.api.dto.request.ForgotPasswordDTO;
 import com.taskrunning.api.dto.request.LoginDTO;
 import com.taskrunning.api.dto.request.ResetPasswordDTO;
+import com.taskrunning.api.dto.request.ValidarCodigoDTO;
 import com.taskrunning.api.dto.response.TokenResponseDTO;
 import com.taskrunning.api.entity.ConfiguracaoHidratacao;
 import com.taskrunning.api.entity.PasswordResetToken;
@@ -43,6 +44,8 @@ public class AuthService {
     public static final int DIAS_REFRESH = 30; // RNF07
     public static final int MINUTOS_VALIDADE_RECUPERACAO = 15; // RF06
     public static final int SEGUNDOS_ENTRE_ENVIOS = 60;
+    public static final int MAX_TENTATIVAS_CODIGO = 5;
+    public static final String CODIGO_INVALIDO = "Código inválido ou expirado. Confira o e-mail ou solicite um novo.";
     private static final String CREDENCIAIS_INVALIDAS = "CPF ou senha inválidos.";
 
     @Autowired
@@ -248,36 +251,79 @@ public class AuthService {
             }
         }
 
-        String token = UUID.randomUUID().toString(); // 122 bits aleatórios (SecureRandom)
-        resetToken.setToken(token); // uma nova solicitação invalida o token anterior
+        // Código de 6 dígitos (fácil de digitar no app). No banco fica só o hash, atrelado ao usuário.
+        String codigo = String.format("%06d", aleatorio.nextInt(1_000_000));
+        resetToken.setToken(hashCodigo(usuario, codigo)); // uma nova solicitação invalida o código anterior
         resetToken.setUsuario(usuario);
         resetToken.setDataExpiracao(agora.plusMinutes(MINUTOS_VALIDADE_RECUPERACAO));
         resetToken.setUsado(false);
+        resetToken.setTentativas(0);
         passwordResetTokenRepository.save(resetToken);
 
         if (emailService != null) {
-            emailService.enviarRecuperacaoSenha(usuario.getEmail(), usuario.getNome(), token);
+            emailService.enviarRecuperacaoSenha(usuario.getEmail(), usuario.getNome(), codigo);
         }
-        return token;
+        return codigo;
     }
 
-    @Transactional
-    public void redefinirSenha(ResetPasswordDTO dto) {
-        PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(dto.token())
-                .orElseThrow(() -> new BusinessRuleException("Token de recuperação inválido ou inexistente"));
+    /**
+     * Etapa 2: confere e-mail + código SEM consumir o código (o site/app só então pede a nova senha).
+     * dontRollbackOn: a tentativa errada precisa ser gravada mesmo com a exceção (anti força bruta).
+     */
+    @Transactional(dontRollbackOn = BusinessRuleException.class)
+    public void validarCodigo(ValidarCodigoDTO dto) {
+        conferirCodigo(dto.email(), dto.codigo());
+    }
 
-        if (resetToken.isUsado()) {
-            throw new BusinessRuleException("Este token de recuperação já foi utilizado.");
-        }
-        if (resetToken.isExpirado()) {
-            throw new BusinessRuleException("Este token de recuperação expirou. Solicite um novo.");
-        }
+    /** Etapa 3: confere o código de novo (a API não confia no cliente), grava a senha e invalida o código. */
+    @Transactional(dontRollbackOn = BusinessRuleException.class)
+    public void redefinirSenha(ResetPasswordDTO dto) {
+        PasswordResetToken resetToken = conferirCodigo(dto.email(), dto.codigo());
 
         Usuario usuario = resetToken.getUsuario();
         usuario.setSenha(passwordEncoder.encode(dto.novaSenha()));
         usuarioRepository.save(usuario);
 
-        resetToken.setUsado(true);
+        resetToken.setUsado(true); // RF07: uso único
         passwordResetTokenRepository.save(resetToken);
+    }
+
+    /**
+     * Mesma mensagem para e-mail inexistente, código errado ou sem solicitação ativa (RNF09: não revela
+     * se o e-mail existe). Ao atingir MAX_TENTATIVAS_CODIGO erros, o código é invalidado.
+     */
+    private PasswordResetToken conferirCodigo(String emailBruto, String codigoBruto) {
+        String email = emailBruto == null ? "" : emailBruto.trim();
+        String codigo = codigoBruto == null ? "" : codigoBruto.replaceAll("\\s", "");
+
+        Usuario usuario = usuarioRepository.findFirstByEmailAndAtivoTrue(email)
+                .orElseThrow(() -> new BusinessRuleException(CODIGO_INVALIDO));
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByUsuario(usuario)
+                .orElseThrow(() -> new BusinessRuleException(CODIGO_INVALIDO));
+
+        boolean confere = MessageDigest.isEqual(
+                resetToken.getToken().getBytes(StandardCharsets.UTF_8),
+                hashCodigo(usuario, codigo).getBytes(StandardCharsets.UTF_8));
+
+        if (!confere) {
+            if (!resetToken.isUsado()) {
+                int erros = (resetToken.getTentativas() == null ? 0 : resetToken.getTentativas()) + 1;
+                resetToken.setTentativas(erros);
+                if (erros >= MAX_TENTATIVAS_CODIGO) resetToken.setUsado(true);
+                passwordResetTokenRepository.save(resetToken);
+            }
+            throw new BusinessRuleException(CODIGO_INVALIDO);
+        }
+        if (resetToken.isUsado()) {
+            throw new BusinessRuleException("Este código já foi utilizado. Solicite um novo.");
+        }
+        if (resetToken.isExpirado()) {
+            throw new BusinessRuleException("Este código expirou. Solicite um novo.");
+        }
+        return resetToken;
+    }
+
+    private static String hashCodigo(Usuario usuario, String codigo) {
+        return sha256("recuperacao:" + usuario.getId() + ":" + codigo);
     }
 }

@@ -48,7 +48,7 @@ app:
     expor-token: false
   email:
     habilitado: true
-    provedor: ${MAIL_PROVIDER:smtp}          # "brevo" (API HTTPS, porta 443) ou "smtp"
+    provedor: ${MAIL_PROVIDER:brevo}         # "brevo" (API HTTPS, porta 443; padrão no Render gratuito) ou "smtp"
     brevo-api-key: ${BREVO_API_KEY:}         # segredo: somente em variável de ambiente
     remetente: ${MAIL_FROM:noreply@taskrunning.app}  # no Brevo, precisa ser um remetente verificado
     remetente-nome: ${MAIL_FROM_NAME:Task Running}

@@ -1,6 +1,7 @@
 package com.taskrunning.api.service;
 
 import com.taskrunning.api.exception.EmailIndisponivelException;
+import jakarta.annotation.PostConstruct;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,8 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.HtmlUtils;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -67,9 +70,22 @@ public class EmailService {
         this.restClient = restClientBuilder.requestFactory(fabrica).build();
     }
 
-    public void enviarRecuperacaoSenha(String emailDestino, String nomeUsuario, String token) {
-        String assunto = "Redefinição de senha – Task Running";
-        String html = construirHtml(nomeUsuario, token);
+    /** Diagnóstico no boot (aparece no log do Render): mostra o provedor e se a chave existe, nunca o valor. */
+    @PostConstruct
+    void registrarConfiguracao() {
+        if ("brevo".equalsIgnoreCase(provedor)) {
+            boolean temChave = brevoApiKey != null && !brevoApiKey.isBlank();
+            if (temChave) log.info("E-mail: provedor=brevo, remetente={}, BREVO_API_KEY configurada", remetente);
+            else log.error("E-mail: provedor=brevo, mas BREVO_API_KEY NÃO está configurada — a recuperação de senha vai falhar");
+        } else {
+            log.warn("E-mail: provedor=smtp (host={}). Em hospedagem gratuita do Render as portas SMTP são bloqueadas; "
+                    + "use MAIL_PROVIDER=brevo.", mailSender.getIfAvailable() == null ? "não configurado" : "configurado");
+        }
+    }
+
+    public void enviarRecuperacaoSenha(String emailDestino, String nomeUsuario, String codigo) {
+        String assunto = "Seu código de recuperação: " + codigo + " – Task Running";
+        String html = construirHtml(nomeUsuario, emailDestino, codigo);
         try {
             if ("brevo".equalsIgnoreCase(provedor)) {
                 enviarPorBrevo(emailDestino, nomeUsuario, assunto, html);
@@ -139,8 +155,10 @@ public class EmailService {
         return email.substring(0, Math.min(2, arroba)) + "***" + email.substring(arroba);
     }
 
-    private String construirHtml(String nome, String token) {
-        String link = frontendUrl + "/reset-password?token=" + token;
+    private String construirHtml(String nome, String email, String codigo) {
+        String link = frontendUrl + "/reset-password?email=" + URLEncoder.encode(email, StandardCharsets.UTF_8)
+                + "&codigo=" + codigo;
+        String linkHtml = link.replace("&", "&amp;"); // "&" escapado dentro do atributo href
         return """
                 <!DOCTYPE html>
                 <html lang="pt-BR">
@@ -164,25 +182,22 @@ public class EmailService {
                             </p>
                             <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.65;">
                               Recebemos uma solicitação para redefinir a senha da sua conta no Task Running.
-                              Clique no botão abaixo para criar uma nova senha.
+                              Use o código abaixo no site ou no aplicativo:
                             </p>
-                            <div style="text-align:center;margin:32px 0;">
+                            <p style="margin:0 0 24px;text-align:center;font-size:36px;font-weight:bold;letter-spacing:10px;
+                                      font-family:'Courier New',monospace;color:#111827;background:#f3f4f6;
+                                      padding:16px;border-radius:8px;">
+                              %s
+                            </p>
+                            <div style="text-align:center;margin:0 0 32px;">
                               <a href="%s"
                                  style="display:inline-block;background:#F97316;color:#ffffff;text-decoration:none;
                                         padding:14px 40px;border-radius:8px;font-size:15px;font-weight:bold;">
-                                Redefinir minha senha
+                                Redefinir pelo site
                               </a>
                             </div>
-                            <p style="margin:0 0 8px;font-size:13px;color:#374151;line-height:1.5;">
-                              Está usando o aplicativo? Copie o código abaixo e cole no campo
-                              <strong>Código recebido</strong>:
-                            </p>
-                            <p style="margin:0 0 24px;font-size:14px;font-family:'Courier New',monospace;color:#111827;
-                                      background:#f3f4f6;padding:12px;border-radius:6px;word-break:break-all;text-align:center;">
-                              %s
-                            </p>
                             <p style="margin:0 0 8px;font-size:13px;color:#6b7280;line-height:1.5;">
-                              Este link e o código expiram em <strong>15 minutos</strong> e só podem ser usados uma vez.
+                              O código expira em <strong>15 minutos</strong> e só pode ser usado uma vez.
                               Se você não solicitou a redefinição, ignore este e-mail —
                               sua senha permanece a mesma e nenhuma alteração foi feita.
                             </p>
@@ -205,6 +220,6 @@ public class EmailService {
                   </table>
                 </body>
                 </html>
-                """.formatted(HtmlUtils.htmlEscape(nome == null ? "" : nome), link, token, link, link);
+                """.formatted(HtmlUtils.htmlEscape(nome == null ? "" : nome), codigo, linkHtml, linkHtml, linkHtml);
     }
 }

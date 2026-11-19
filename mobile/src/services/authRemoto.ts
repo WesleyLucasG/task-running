@@ -104,11 +104,25 @@ export async function solicitarRecuperacao(email: string): Promise<{ codigoSimul
   return { codigoSimulado: r?.tokenTeste ?? null };
 }
 
-export async function redefinirSenha(codigo: string, novaSenha: string, confirmar: string): Promise<void> {
+// Etapa 2: confere o código de 6 dígitos no servidor sem consumi-lo
+export async function validarCodigo(email: string, codigo: string): Promise<void> {
+  await api<void>('/auth/validar-codigo', {
+    metodo: 'POST',
+    autenticado: false,
+    corpo: { email: email.trim().toLowerCase(), codigo: codigo.replace(/\s/g, '') },
+  });
+}
+
+// Etapa 3: o servidor confere o código de novo antes de gravar a nova senha
+export async function redefinirSenha(email: string, codigo: string, novaSenha: string, confirmar: string): Promise<void> {
   const erro = validarSenha(novaSenha); // RF08
   if (erro) throw new Error(erro);
   if (novaSenha !== confirmar) throw new Error('As senhas não conferem.');
-  await api<void>('/auth/reset-password', { metodo: 'POST', autenticado: false, corpo: { token: codigo.trim(), novaSenha } });
+  await api<void>('/auth/reset-password', {
+    metodo: 'POST',
+    autenticado: false,
+    corpo: { email: email.trim().toLowerCase(), codigo: codigo.replace(/\s/g, ''), novaSenha },
+  });
 }
 
 // UC08 / RN09: o backend recalcula a meta de água quando o peso muda

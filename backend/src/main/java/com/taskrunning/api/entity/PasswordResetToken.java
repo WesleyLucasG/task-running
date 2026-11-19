@@ -30,6 +30,9 @@ public class PasswordResetToken {
 
    private boolean usado = false;
 
+   // Tentativas erradas com o código atual; ao atingir o limite o código é invalidado (anti força bruta)
+   private Integer tentativas = 0;
+
    public boolean isExpirado(){
        return LocalDateTime.now().isAfter(this.dataExpiracao);
    }
