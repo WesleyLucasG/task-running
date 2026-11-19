@@ -58,7 +58,7 @@ class AuthServiceTest {
 
     @BeforeEach
     void setup() {
-        cadastroDTO = new CadastroUsuarioDTO("Kilo", "runner@taskrunning.com", "senha123", CPF_VALIDO, 70.00);
+        cadastroDTO = new CadastroUsuarioDTO("Kilo", "runner@taskrunning.com", "Senha@123", CPF_VALIDO, 70.00);
         usuario = new Usuario();
         usuario.setId(1L);
         usuario.setCpf(cpfCriptografia.criptografar(CPF_DIGITOS));
@@ -71,7 +71,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("RF02: cadastro rejeita CPF com dígitos verificadores inválidos")
     void deveRejeitarCpfInvalido() {
-        var dto = new CadastroUsuarioDTO("Kilo", "a@b.com", "senha123", "12345678900", 70.0);
+        var dto = new CadastroUsuarioDTO("Kilo", "a@b.com", "Senha@123", "12345678900", 70.0);
         assertThrows(BusinessRuleException.class, () -> authService.cadastrar(dto));
         verify(usuarioRepository, never()).save(any());
     }
@@ -89,7 +89,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("RNF06: cadastro grava o CPF criptografado e o índice cego, nunca em texto puro")
     void deveCadastrarComCpfCriptografado() {
-        when(passwordEncoder.encode("senha123")).thenReturn("senhaCriptografada");
+        when(passwordEncoder.encode("Senha@123")).thenReturn("senhaCriptografada");
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(i -> i.getArgument(0));
 
         authService.cadastrar(cadastroDTO);
@@ -108,10 +108,10 @@ class AuthServiceTest {
     @DisplayName("Login por CPF com máscara gera access token de 24h e refresh token")
     void deveAutenticarEGerarTokens() {
         when(usuarioRepository.findByCpfHashAndAtivoTrue(cpfCriptografia.hash(CPF_DIGITOS))).thenReturn(Optional.of(usuario));
-        when(passwordEncoder.matches("senha123", "senhaCriptografada")).thenReturn(true);
+        when(passwordEncoder.matches("Senha@123", "senhaCriptografada")).thenReturn(true);
         when(tokenService.gerarToken(usuario)).thenReturn("tokenJwtFake123");
 
-        TokenResponseDTO resposta = authService.login(new LoginDTO(CPF_VALIDO, "senha123"));
+        TokenResponseDTO resposta = authService.login(new LoginDTO(CPF_VALIDO, "Senha@123"));
 
         assertEquals("tokenJwtFake123", resposta.token());
         assertEquals("Bearer", resposta.tipo());
@@ -131,10 +131,10 @@ class AuthServiceTest {
         usuario.setCpfHash(null);
         when(usuarioRepository.findByCpfHashAndAtivoTrue(anyString())).thenReturn(Optional.empty());
         when(usuarioRepository.findByCpfAndAtivoTrue(CPF_DIGITOS)).thenReturn(Optional.of(usuario));
-        when(passwordEncoder.matches("senha123", "senhaCriptografada")).thenReturn(true);
+        when(passwordEncoder.matches("Senha@123", "senhaCriptografada")).thenReturn(true);
         when(tokenService.gerarToken(usuario)).thenReturn("t");
 
-        authService.login(new LoginDTO(CPF_DIGITOS, "senha123"));
+        authService.login(new LoginDTO(CPF_DIGITOS, "Senha@123"));
 
         assertTrue(CpfCriptografia.estaCriptografado(usuario.getCpf()));
         assertEquals(cpfCriptografia.hash(CPF_DIGITOS), usuario.getCpfHash());
@@ -160,7 +160,7 @@ class AuthServiceTest {
 
         // Bloqueado: nem a senha certa entra, e a senha não chega a ser verificada
         reset(passwordEncoder);
-        assertThrows(AutenticacaoException.class, () -> authService.login(new LoginDTO(CPF_VALIDO, "senha123")));
+        assertThrows(AutenticacaoException.class, () -> authService.login(new LoginDTO(CPF_VALIDO, "Senha@123")));
         verify(passwordEncoder, never()).matches(anyString(), anyString());
     }
 
@@ -201,15 +201,89 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("Recuperação de senha substitui o token anterior (comportamento da equipe preservado)")
+    @DisplayName("Recuperação de senha substitui o token anterior reaproveitando a linha (sem DELETE + INSERT)")
     void deveSubstituirTokenAnteriorNaRecuperacaoDeSenha() {
         ForgotPasswordDTO dto = new ForgotPasswordDTO("runner@taskrunning.com");
-        when(usuarioRepository.findByEmail(dto.email())).thenReturn(Optional.of(usuario));
+        PasswordResetToken anterior = tokenRecuperacao("token-antigo", LocalDateTime.now().plusMinutes(10), false);
+        when(usuarioRepository.findFirstByEmailAndAtivoTrue(dto.email())).thenReturn(Optional.of(usuario));
+        when(passwordResetTokenRepository.findByUsuario(usuario)).thenReturn(Optional.of(anterior));
 
         String token = authService.recuperarSenha(dto);
 
         assertNotNull(token);
-        verify(passwordResetTokenRepository).deleteByUsuario(usuario);
-        verify(passwordResetTokenRepository).save(any(PasswordResetToken.class));
+        assertNotEquals("token-antigo", token);
+        assertEquals(token, anterior.getToken());
+        assertFalse(anterior.isUsado());
+        assertTrue(anterior.getDataExpiracao().isAfter(LocalDateTime.now().plusMinutes(14)));
+        assertTrue(anterior.getDataExpiracao().isBefore(LocalDateTime.now().plusMinutes(16)));
+        verify(passwordResetTokenRepository).save(anterior);
+        verify(passwordResetTokenRepository, never()).deleteByUsuario(any());
+    }
+
+    @Test
+    @DisplayName("E-mail inexistente: nada é gravado nem enviado (resposta genérica no controller)")
+    void naoGeraTokenParaEmailInexistente() {
+        EmailService email = mock(EmailService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "emailService", email);
+        when(usuarioRepository.findFirstByEmailAndAtivoTrue("ninguem@x.com")).thenReturn(Optional.empty());
+
+        assertNull(authService.recuperarSenha(new ForgotPasswordDTO("ninguem@x.com")));
+        verify(passwordResetTokenRepository, never()).save(any());
+        verifyNoInteractions(email);
+    }
+
+    @Test
+    @DisplayName("Falha no provedor de e-mail é propagada (nunca vira 'recuperação concluída')")
+    void falhaNoEnvioEhPropagada() {
+        EmailService email = mock(EmailService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "emailService", email);
+        when(usuarioRepository.findFirstByEmailAndAtivoTrue(usuario.getEmail())).thenReturn(Optional.of(usuario));
+        when(passwordResetTokenRepository.findByUsuario(usuario)).thenReturn(Optional.empty());
+        doThrow(new com.taskrunning.api.exception.EmailIndisponivelException("timeout", null))
+                .when(email).enviarRecuperacaoSenha(anyString(), any(), anyString());
+
+        assertThrows(com.taskrunning.api.exception.EmailIndisponivelException.class,
+                () -> authService.recuperarSenha(new ForgotPasswordDTO(usuario.getEmail())));
+    }
+
+    @Test
+    @DisplayName("Solicitação repetida em menos de 60 s não reenvia o e-mail nem troca o token")
+    void solicitacaoRepetidaNaoReenvia() {
+        EmailService email = mock(EmailService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(authService, "emailService", email);
+        PasswordResetToken recente = tokenRecuperacao("recente", LocalDateTime.now().plusMinutes(15).minusSeconds(5), false);
+        when(usuarioRepository.findFirstByEmailAndAtivoTrue(usuario.getEmail())).thenReturn(Optional.of(usuario));
+        when(passwordResetTokenRepository.findByUsuario(usuario)).thenReturn(Optional.of(recente));
+
+        assertNull(authService.recuperarSenha(new ForgotPasswordDTO(usuario.getEmail())));
+        assertEquals("recente", recente.getToken());
+        verifyNoInteractions(email);
+    }
+
+    @Test
+    @DisplayName("Token já utilizado ou expirado não redefine a senha")
+    void tokenUsadoOuExpiradoEhRecusado() {
+        when(passwordResetTokenRepository.findByToken("usado"))
+                .thenReturn(Optional.of(tokenRecuperacao("usado", LocalDateTime.now().plusMinutes(5), true)));
+        when(passwordResetTokenRepository.findByToken("velho"))
+                .thenReturn(Optional.of(tokenRecuperacao("velho", LocalDateTime.now().minusSeconds(1), false)));
+
+        assertThrows(BusinessRuleException.class,
+                () -> authService.redefinirSenha(new com.taskrunning.api.dto.request.ResetPasswordDTO("usado", "Nova@2026")));
+        assertThrows(BusinessRuleException.class,
+                () -> authService.redefinirSenha(new com.taskrunning.api.dto.request.ResetPasswordDTO("velho", "Nova@2026")));
+        assertThrows(BusinessRuleException.class,
+                () -> authService.redefinirSenha(new com.taskrunning.api.dto.request.ResetPasswordDTO("inexistente", "Nova@2026")));
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    private PasswordResetToken tokenRecuperacao(String valor, LocalDateTime expira, boolean usado) {
+        PasswordResetToken t = new PasswordResetToken();
+        t.setId(9L);
+        t.setToken(valor);
+        t.setUsuario(usuario);
+        t.setDataExpiracao(expira);
+        t.setUsado(usado);
+        return t;
     }
 }

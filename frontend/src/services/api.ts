@@ -31,8 +31,9 @@ export function getApiError(error: unknown): string {
     const data = error.response?.data;
     if (data) {
       if (typeof data === 'string' && data.length > 0) return data;
-      if (data.message && typeof data.message === 'string') return data.message;
+      // O detalhe do campo (ex.: regra de senha RF08) é mais útil que a mensagem genérica de validação
       if (Array.isArray(data.errors) && data.errors.length > 0) return data.errors[0].message;
+      if (data.message && typeof data.message === 'string') return data.message;
       if (data.error && typeof data.error === 'string') return data.error;
     }
     if (!error.response) return 'Sem conexão com o servidor. Verifique sua internet.';

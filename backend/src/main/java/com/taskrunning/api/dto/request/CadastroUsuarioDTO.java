@@ -1,5 +1,6 @@
 package com.taskrunning.api.dto.request;
 
+import com.taskrunning.api.util.RegraSenha;
 import jakarta.validation.constraints.*;
 
 public record CadastroUsuarioDTO(
@@ -10,8 +11,9 @@ public record CadastroUsuarioDTO(
         String email,
 
         @NotBlank(message = "A senha é obrigatória.")
-        @Size(min = 8, message = "A senha deve ter no mínimo 8 caracteres")
-        @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d).+$", message = "A senha deve conter letras e números")
+        // RF08: letra, número e caractere especial (RegraSenha é a fonte única)
+        @Size(min = RegraSenha.TAMANHO_MINIMO, message = "A senha deve ter no mínimo 8 caracteres")
+        @Pattern(regexp = RegraSenha.REGEX, message = RegraSenha.MENSAGEM)
         String senha,
 
         @NotBlank(message = "O CPF é obrigatório")

@@ -52,6 +52,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
+    // Falha no provedor de e-mail: não pode ser apresentada como recuperação concluída.
+    @ExceptionHandler(EmailIndisponivelException.class)
+    public ResponseEntity<ErrorResponseDTO> handleEmailIndisponivel(EmailIndisponivelException ex, HttpServletRequest request) {
+        ErrorResponseDTO error = new ErrorResponseDTO(LocalDateTime.now(), HttpStatus.SERVICE_UNAVAILABLE.value(),
+                "Serviço de e-mail indisponível",
+                "Não foi possível enviar o e-mail de recuperação agora. Tente novamente em alguns minutos.",
+                request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(error);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponseDTO> handleValidationErrors(MethodArgumentNotValidException ex, HttpServletRequest request) {
         List<ErrorResponseDTO.FieldErrorDTO> fieldErrors = ex.getBindingResult()

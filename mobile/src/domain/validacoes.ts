@@ -34,11 +34,55 @@ export function validarEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-// RF08: mínimo 8 caracteres, com letra, número e caractere especial
+// RF08 — espelho da regra do Backend (RegraSenha.java), que continua sendo a autoridade final.
+// Letras e números seguem as classes Unicode: "é", "ç", "ñ" contam como letra, e não como caractere especial.
+// Se o motor JS não suportar \p{...}, usa um equivalente: letra = caractere com maiúscula/minúscula.
+function criarRegex(unicode: string, alternativo: RegExp): (c: string) => boolean {
+  try {
+    const r = new RegExp(unicode, 'u');
+    return (c) => r.test(c);
+  } catch {
+    return (c) => alternativo.test(c);
+  }
+}
+const ehLetraUnicode = criarRegex('^\\p{L}$', /^$/);
+const ehLetra = (c: string) => ehLetraUnicode(c) || c.toLowerCase() !== c.toUpperCase();
+const ehDigito = criarRegex('^\\p{Nd}$', /^[0-9]$/);
+const ehEspaco = (c: string) => /\s/.test(c);
+
+export type RequisitoSenha = { id: string; rotulo: string; mensagem: string; atendido: boolean };
+
+export function requisitosSenha(senha: string): RequisitoSenha[] {
+  const chars = Array.from(senha);
+  return [
+    {
+      id: 'tamanho',
+      rotulo: 'Mínimo de 8 caracteres',
+      mensagem: 'A senha precisa ter no mínimo 8 caracteres.',
+      atendido: chars.length >= 8,
+    },
+    {
+      id: 'letra',
+      rotulo: 'Pelo menos uma letra',
+      mensagem: 'A senha precisa ter ao menos uma letra.',
+      atendido: chars.some(ehLetra),
+    },
+    {
+      id: 'numero',
+      rotulo: 'Pelo menos um número',
+      mensagem: 'A senha precisa ter ao menos um número.',
+      atendido: chars.some(ehDigito),
+    },
+    {
+      id: 'especial',
+      rotulo: 'Pelo menos um caractere especial',
+      mensagem: 'A senha precisa ter ao menos um caractere especial.',
+      atendido: chars.some((c) => !ehLetra(c) && !ehDigito(c) && !ehEspaco(c)),
+    },
+  ];
+}
+
 export function validarSenha(senha: string): string | null {
-  if (senha.length < 8) return 'A senha precisa ter no mínimo 8 caracteres.';
-  if (!/[A-Za-z]/.test(senha)) return 'A senha precisa ter ao menos uma letra.';
-  if (!/\d/.test(senha)) return 'A senha precisa ter ao menos um número.';
-  if (!/[^A-Za-z0-9]/.test(senha)) return 'A senha precisa ter ao menos um caractere especial.';
-  return null;
+  const pendente = requisitosSenha(senha).find((r) => !r.atendido);
+  return pendente ? pendente.mensagem : null;
 }

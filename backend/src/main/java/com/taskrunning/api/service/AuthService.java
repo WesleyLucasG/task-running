@@ -41,6 +41,8 @@ public class AuthService {
     public static final int MAX_TENTATIVAS = 5; // RNF13
     public static final int MINUTOS_BLOQUEIO = 15; // RNF13
     public static final int DIAS_REFRESH = 30; // RNF07
+    public static final int MINUTOS_VALIDADE_RECUPERACAO = 15; // RF06
+    public static final int SEGUNDOS_ENTRE_ENVIOS = 60;
     private static final String CREDENCIAIS_INVALIDAS = "CPF ou senha inválidos.";
 
     @Autowired
@@ -216,34 +218,50 @@ public class AuthService {
         }
     }
 
+    /**
+     * RF05/RF06. Devolve o token gerado (exposto na resposta somente em desenvolvimento) ou null quando
+     * o e-mail não existe ou a solicitação caiu no intervalo mínimo de reenvio — em ambos os casos o
+     * controller responde com a mesma mensagem genérica (RNF09: não revelar se o e-mail existe).
+     *
+     * Se o provedor de e-mail falhar, EmailIndisponivelException é propagada e o @Transactional desfaz a
+     * gravação do token: nada fica "meio concluído" e o usuário recebe 503 em vez de um falso sucesso.
+     */
     @Transactional
     public String recuperarSenha(ForgotPasswordDTO dto) {
-        Optional<Usuario> usuarioOpt = usuarioRepository.findByEmail(dto.email());
+        String email = dto.email() == null ? "" : dto.email().trim();
+        Optional<Usuario> usuarioOpt = usuarioRepository.findFirstByEmailAndAtivoTrue(email);
+        if (usuarioOpt.isEmpty()) return null;
 
-        if (usuarioOpt.isPresent()) {
-            Usuario usuario = usuarioOpt.get();
-            String token = UUID.randomUUID().toString();
+        Usuario usuario = usuarioOpt.get();
+        LocalDateTime agora = LocalDateTime.now();
 
-            // A tabela possui um único token por usuário; uma nova solicitação invalida o anterior.
-            passwordResetTokenRepository.deleteByUsuario(usuario);
+        // A tabela guarda um único token por usuário (usuario_id é único). Reaproveitar a linha evita
+        // o DELETE + INSERT no mesmo flush, que o Hibernate ordena como INSERT antes do DELETE.
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByUsuario(usuario)
+                .orElseGet(PasswordResetToken::new);
 
-            PasswordResetToken resetToken = new PasswordResetToken();
-            resetToken.setToken(token);
-            resetToken.setUsuario(usuario);
-            resetToken.setDataExpiracao(LocalDateTime.now().plusMinutes(15));
-            resetToken.setUsado(false);
-
-            passwordResetTokenRepository.save(resetToken);
-
-            if (emailService != null) {
-                emailService.enviarRecuperacaoSenha(usuario.getEmail(), usuario.getNome(), token);
+        // Solicitações repetidas: evita reenvio em rajada (spam e consumo da cota diária do provedor).
+        if (resetToken.getId() != null && !resetToken.isUsado() && resetToken.getDataExpiracao() != null) {
+            LocalDateTime criadoEm = resetToken.getDataExpiracao().minusMinutes(MINUTOS_VALIDADE_RECUPERACAO);
+            if (criadoEm.plusSeconds(SEGUNDOS_ENTRE_ENVIOS).isAfter(agora)) {
+                return null;
             }
-
-            return token;
         }
-        return null;
+
+        String token = UUID.randomUUID().toString(); // 122 bits aleatórios (SecureRandom)
+        resetToken.setToken(token); // uma nova solicitação invalida o token anterior
+        resetToken.setUsuario(usuario);
+        resetToken.setDataExpiracao(agora.plusMinutes(MINUTOS_VALIDADE_RECUPERACAO));
+        resetToken.setUsado(false);
+        passwordResetTokenRepository.save(resetToken);
+
+        if (emailService != null) {
+            emailService.enviarRecuperacaoSenha(usuario.getEmail(), usuario.getNome(), token);
+        }
+        return token;
     }
 
+    @Transactional
     public void redefinirSenha(ResetPasswordDTO dto) {
         PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(dto.token())
                 .orElseThrow(() -> new BusinessRuleException("Token de recuperação inválido ou inexistente"));

@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Botao } from '../components/Botao';
 import { Caixa } from '../components/Caixa';
 import { Campo } from '../components/Campo';
-import { mascararCpf } from '../domain/validacoes';
+import { RequisitosSenha } from '../components/RequisitosSenha';
+import { mascararCpf, validarSenha } from '../domain/validacoes';
 import { useAuth } from '../state/AuthContext';
 import { cores, espaco, fontes } from '../theme';
 
@@ -32,6 +33,16 @@ export default function Cadastro() {
   const [aceite, setAceite] = useState(false);
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
+  const rolagem = useRef<ScrollViewInstance>(null);
+  const posicaoSenha = useRef(0);
+
+  // RF08: o botão só é liberado com senha válida e confirmada (o Backend valida de novo)
+  const senhaOk = validarSenha(form.senha) === null;
+  const confirmacaoOk = form.confirmarSenha.length > 0 && form.confirmarSenha === form.senha;
+
+  // Android: ao focar a senha, sobe a tela para os requisitos não ficarem atrás do teclado
+  const mostrarRequisitos = () =>
+    setTimeout(() => rolagem.current?.scrollTo({ y: Math.max(0, posicaoSenha.current - espaco.md), animated: true }), 250);
 
   const mudar = (campo: keyof typeof form) => (valor: string) =>
     setForm((f) => ({ ...f, [campo]: campo === 'cpf' ? mascararCpf(valor) : valor }));
@@ -55,7 +66,7 @@ export default function Cadastro() {
   return (
     <SafeAreaView style={estilos.raiz}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={estilos.conteudo} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={rolagem} contentContainerStyle={estilos.conteudo} keyboardShouldPersistTaps="handled">
           <View style={estilos.topo}>
             <Pressable style={estilos.voltar} onPress={() => router.back()} accessibilityLabel="Voltar">
               <Ionicons name="arrow-back" size={20} color={cores.texto} />
@@ -133,23 +144,29 @@ export default function Cadastro() {
             Para melhor experiência informe peso e altura, ativando o Módulo de Hidratação.
           </Text>
 
-          <Campo
-            rotulo="Senha"
-            iconeRotulo="lock-closed-outline"
-            senha
-            value={form.senha}
-            onChangeText={mudar('senha')}
-            placeholder="••••••••"
-            ajuda="Mínimo de 8 caracteres, com letra, número e caractere especial."
-          />
-          <Campo
-            rotulo="Confirmar senha"
-            iconeRotulo="lock-closed-outline"
-            senha
-            value={form.confirmarSenha}
-            onChangeText={mudar('confirmarSenha')}
-            placeholder="••••••••"
-          />
+          <View style={{ gap: espaco.md }} onLayout={(e) => (posicaoSenha.current = e.nativeEvent.layout.y)}>
+            <Campo
+              rotulo="Senha"
+              iconeRotulo="lock-closed-outline"
+              senha
+              value={form.senha}
+              onChangeText={mudar('senha')}
+              onFocus={mostrarRequisitos}
+              placeholder="••••••••"
+              autoComplete="new-password"
+            />
+            <Campo
+              rotulo="Confirmar senha"
+              iconeRotulo="lock-closed-outline"
+              senha
+              value={form.confirmarSenha}
+              onChangeText={mudar('confirmarSenha')}
+              onFocus={mostrarRequisitos}
+              placeholder="••••••••"
+              autoComplete="new-password"
+            />
+            <RequisitosSenha senha={form.senha} confirmacao={form.confirmarSenha} />
+          </View>
 
           <View style={estilos.aceite}>
             <Caixa marcada={aceite} aoAlterar={setAceite} rotuloAcessivel="Aceito o Código de Honra">
@@ -169,7 +186,7 @@ export default function Cadastro() {
             titulo="CRIAR CONTA"
             fonte="pixel"
             iconeDireita="chevron-forward"
-            desabilitado={!aceite}
+            desabilitado={!aceite || !senhaOk || !confirmacaoOk}
             carregando={carregando}
             onPress={aoCadastrar}
           />

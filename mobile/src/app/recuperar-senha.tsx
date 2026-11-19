@@ -1,11 +1,13 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { Botao } from '../components/Botao';
 import { Cabecalho } from '../components/Cabecalho';
 import { Campo } from '../components/Campo';
+import { RequisitosSenha } from '../components/RequisitosSenha';
 import { Tela } from '../components/Tela';
 import { redefinirSenha, solicitarRecuperacao } from '../domain/auth';
+import { validarSenha } from '../domain/validacoes';
 import { cores, espaco, fontes, raio } from '../theme';
 
 type Etapa = 'EMAIL' | 'CODIGO' | 'FEITO';
@@ -19,6 +21,18 @@ export default function RecuperarSenha() {
   const [codigoSimulado, setCodigoSimulado] = useState<string | null>(null);
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(false);
+  const rolagem = useRef<ScrollViewInstance>(null);
+  const posicaoCartao = useRef(0);
+  const posicaoSenha = useRef(0); // relativa ao cartão
+
+  // RF08: o botão só é liberado com código, senha válida e confirmação (o Backend valida de novo)
+  const senhaOk = validarSenha(senha) === null;
+  const confirmacaoOk = confirmar.length > 0 && confirmar === senha;
+  const podeRedefinir = codigo.trim().length > 0 && senhaOk && confirmacaoOk;
+
+  // Android: ao focar a senha, sobe a tela para os requisitos não ficarem atrás do teclado
+  const mostrarRequisitos = () =>
+    setTimeout(() => rolagem.current?.scrollTo({ y: Math.max(0, posicaoCartao.current + posicaoSenha.current), animated: true }), 250);
 
   async function pedirCodigo() {
     setErro('');
@@ -48,7 +62,7 @@ export default function RecuperarSenha() {
   }
 
   return (
-    <Tela>
+    <Tela rolagemRef={rolagem}>
       <Cabecalho titulo="RECUPERAR SENHA" />
 
       {etapa === 'EMAIL' && (
@@ -69,10 +83,10 @@ export default function RecuperarSenha() {
       )}
 
       {etapa === 'CODIGO' && (
-        <View style={estilos.cartao}>
+        <View style={estilos.cartao} onLayout={(e) => (posicaoCartao.current = e.nativeEvent.layout.y)}>
           <Text style={estilos.texto}>
             Se o e-mail estiver cadastrado, enviamos um código de recuperação. Ele vale por 15
-            minutos e só pode ser usado uma vez.
+            minutos e só pode ser usado uma vez. Verifique também a caixa de spam.
           </Text>
 
           {__DEV__ && codigoSimulado && (
@@ -87,21 +101,36 @@ export default function RecuperarSenha() {
             rotulo="Código recebido"
             value={codigo}
             onChangeText={setCodigo}
-            autoCapitalize="characters"
-            placeholder="XXXXXXXX"
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="Cole aqui o código do e-mail"
           />
-          <Campo rotulo="Nova senha" value={senha} onChangeText={setSenha} secureTextEntry />
-          <Campo
-            rotulo="Confirmar nova senha"
-            value={confirmar}
-            onChangeText={setConfirmar}
-            secureTextEntry
-          />
-          <Text style={estilos.dica}>
-            Mínimo de 8 caracteres, com letra, número e caractere especial.
-          </Text>
+          <View style={{ gap: espaco.md }} onLayout={(e) => (posicaoSenha.current = e.nativeEvent.layout.y)}>
+            <Campo
+              rotulo="Nova senha"
+              value={senha}
+              onChangeText={setSenha}
+              onFocus={mostrarRequisitos}
+              senha
+              autoComplete="new-password"
+            />
+            <Campo
+              rotulo="Confirmar nova senha"
+              value={confirmar}
+              onChangeText={setConfirmar}
+              onFocus={mostrarRequisitos}
+              senha
+              autoComplete="new-password"
+            />
+            <RequisitosSenha senha={senha} confirmacao={confirmar} />
+          </View>
           {!!erro && <Text style={estilos.erro}>{erro}</Text>}
-          <Botao titulo="REDEFINIR SENHA" onPress={trocarSenha} carregando={carregando} />
+          <Botao
+            titulo="REDEFINIR SENHA"
+            onPress={trocarSenha}
+            carregando={carregando}
+            desabilitado={!podeRedefinir}
+          />
           <Botao titulo="PEDIR NOVO CÓDIGO" variante="contorno" onPress={() => setEtapa('EMAIL')} />
         </View>
       )}
@@ -127,7 +156,6 @@ const estilos = StyleSheet.create({
     gap: espaco.md,
   },
   texto: { color: cores.textoSuave, fontSize: 14 },
-  dica: { color: cores.textoSuave, fontSize: 12 },
   erro: { color: cores.erro },
   sucesso: { color: cores.sucesso, fontSize: 16, fontWeight: '700' },
   simulacao: {

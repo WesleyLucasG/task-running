@@ -12,7 +12,7 @@ type Props = {
   senha?: boolean; // mostra o "olho" para exibir/ocultar
 } & TextInputProps;
 
-export function Campo({ rotulo, icone, iconeRotulo, ajuda, erro, senha, style, ...props }: Props) {
+export function Campo({ rotulo, icone, iconeRotulo, ajuda, erro, senha, style, onFocus, onBlur, ...props }: Props) {
   const [foco, setFoco] = useState(false);
   const [visivel, setVisivel] = useState(false);
   const corBorda = erro ? cores.erro : foco ? cores.laranja : cores.borda;
@@ -31,11 +31,11 @@ export function Campo({ rotulo, icone, iconeRotulo, ajuda, erro, senha, style, .
           secureTextEntry={senha && !visivel}
           onFocus={(e) => {
             setFoco(true);
-            props.onFocus?.(e);
+            onFocus?.(e);
           }}
           onBlur={(e) => {
             setFoco(false);
-            props.onBlur?.(e);
+            onBlur?.(e);
           }}
           style={[estilos.input, style]}
           {...props}

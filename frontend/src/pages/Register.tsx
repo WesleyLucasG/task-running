@@ -3,9 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import api, { getApiError } from '../services/api';
+import RequisitosSenha from '../components/RequisitosSenha';
+import { senhaValida } from '../utils/senha';
 
 export default function Register() {
-  const [form, setForm] = useState({ nome: '', email: '', cpf: '', senha: '', peso: '' });
+  const [form, setForm] = useState({ nome: '', email: '', cpf: '', senha: '', confirmarSenha: '', peso: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -21,8 +23,21 @@ export default function Register() {
       .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
   };
 
+  // RF08: o envio só é liberado com a senha válida e confirmada (o Backend valida de novo)
+  const senhaOk = senhaValida(form.senha);
+  const confirmacaoOk = form.confirmarSenha.length > 0 && form.confirmarSenha === form.senha;
+  const podeEnviar = senhaOk && confirmacaoOk && !loading;
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!senhaOk) {
+      toast.error('A senha ainda não atende a todos os requisitos.');
+      return;
+    }
+    if (!confirmacaoOk) {
+      toast.error('As senhas não coincidem.');
+      return;
+    }
     setLoading(true);
     try {
       await api.post('/auth/register', {
@@ -136,24 +151,42 @@ export default function Register() {
                   type={showPassword ? 'text' : 'password'}
                   value={form.senha}
                   onChange={set('senha')}
-                  placeholder="Mínimo 8 caracteres com letras e números"
+                  placeholder="Crie uma senha forte"
                   required
                   minLength={8}
+                  autoComplete="new-password"
+                  aria-invalid={form.senha.length > 0 && !senhaOk}
                   className={`${inputClass} pr-12`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
+            <div>
+              <label className={labelClass}>Confirmar senha</label>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={form.confirmarSenha}
+                onChange={set('confirmarSenha')}
+                placeholder="Repita a senha"
+                required
+                autoComplete="new-password"
+                aria-invalid={form.confirmarSenha.length > 0 && !confirmacaoOk}
+                className={inputClass}
+              />
+              <RequisitosSenha senha={form.senha} confirmacao={form.confirmarSenha} />
+            </div>
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={!podeEnviar}
               className="w-full bg-brand-500 hover:bg-brand-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold tracking-widest uppercase py-3 rounded-xl transition-colors flex items-center justify-center gap-2 mt-2 shadow-lg shadow-orange-500/20"
             >
               {loading && <Loader2 size={18} className="animate-spin" />}

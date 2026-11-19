@@ -12,17 +12,24 @@ spring:
     properties:
       hibernate:
         format_sql: false
+  # Usado somente quando MAIL_PROVIDER=smtp. No Render gratuito as portas 25/465/587 são bloqueadas,
+  # por isso lá o provedor deve ser "brevo" (API HTTPS) e estas variáveis podem ficar vazias.
   mail:
-    host: ${MAIL_HOST}
+    host: ${MAIL_HOST:}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
+            required: true
+          # Sem isso o JavaMail espera para sempre (log: "timeout -1") e prende a thread da requisição.
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
 
 server:
   forward-headers-strategy: framework  # HTTPS terminado no proxy da nuvem
@@ -41,4 +48,7 @@ app:
     expor-token: false
   email:
     habilitado: true
-    remetente: ${MAIL_FROM:noreply@taskrunning.app}
+    provedor: ${MAIL_PROVIDER:smtp}          # "brevo" (API HTTPS, porta 443) ou "smtp"
+    brevo-api-key: ${BREVO_API_KEY:}         # segredo: somente em variável de ambiente
+    remetente: ${MAIL_FROM:noreply@taskrunning.app}  # no Brevo, precisa ser um remetente verificado
+    remetente-nome: ${MAIL_FROM_NAME:Task Running}

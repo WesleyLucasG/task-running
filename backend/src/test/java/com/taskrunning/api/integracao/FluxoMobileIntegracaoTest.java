@@ -60,7 +60,7 @@ class FluxoMobileIntegracaoTest {
 
         // Cadastro (CPF criptografado no banco)
         enviar("/auth/register", """
-                {"nome":"Aquiles","email":"aquiles@olimpo.com","senha":"senha123","cpf":"%s","peso":70}
+                {"nome":"Aquiles","email":"aquiles@olimpo.com","senha":"Senha@123","cpf":"%s","peso":70}
                 """.formatted(CPF), null, 201);
         Usuario gravado = usuarioRepository.findAll().get(0);
         assertTrue(gravado.getCpf().startsWith("enc:v1:"));
@@ -68,12 +68,12 @@ class FluxoMobileIntegracaoTest {
 
         // Cadastro repetido → 409
         enviar("/auth/register", """
-                {"nome":"Outro","email":"x@olimpo.com","senha":"senha123","cpf":"52998224725","peso":70}
+                {"nome":"Outro","email":"x@olimpo.com","senha":"Senha@123","cpf":"52998224725","peso":70}
                 """, null, 409);
 
         // Login por CPF (com ou sem máscara)
         JsonNode tokens = enviar("/auth/login", """
-                {"cpf":"52998224725","senha":"senha123"}""", null, 200);
+                {"cpf":"52998224725","senha":"Senha@123"}""", null, 200);
         String acesso = tokens.get("token").asText();
         String refresh = tokens.get("refreshToken").asText();
         assertEquals(86400, tokens.get("expiraEmSegundos").asLong());
@@ -136,13 +136,13 @@ class FluxoMobileIntegracaoTest {
     @DisplayName("RNF13: 5 falhas bloqueiam o login por 15 minutos")
     void bloqueioPorTentativas() throws Exception {
         enviar("/auth/register", """
-                {"nome":"Heitor","email":"heitor@troia.com","senha":"senha123","cpf":"111.444.777-35","peso":80}
+                {"nome":"Heitor","email":"heitor@troia.com","senha":"Senha@123","cpf":"111.444.777-35","peso":80}
                 """, null, 201);
         for (int i = 0; i < 4; i++) {
             enviar("/auth/login", "{\"cpf\":\"11144477735\",\"senha\":\"errada\"}", null, 401);
         }
         JsonNode bloqueio = enviar("/auth/login", "{\"cpf\":\"11144477735\",\"senha\":\"errada\"}", null, 401);
         assertTrue(bloqueio.get("message").asText().contains("bloqueado"));
-        enviar("/auth/login", "{\"cpf\":\"11144477735\",\"senha\":\"senha123\"}", null, 401);
+        enviar("/auth/login", "{\"cpf\":\"11144477735\",\"senha\":\"Senha@123\"}", null, 401);
     }
 }
