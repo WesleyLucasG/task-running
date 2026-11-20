@@ -35,7 +35,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 public class AuthService {

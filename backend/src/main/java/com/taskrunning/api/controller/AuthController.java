@@ -9,7 +9,6 @@ import com.taskrunning.api.dto.request.ValidarCodigoDTO;
 import com.taskrunning.api.dto.response.TokenResponseDTO;
 import com.taskrunning.api.service.AuthService;
 import jakarta.validation.Valid;
-import org.apache.coyote.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

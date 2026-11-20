@@ -65,8 +65,9 @@ class AtividadeServiceTest {
             return a;
         });
         lenient().when(pontoGpsRepository.saveAll(anyCollection())).thenAnswer(i -> {
-            banco.addAll((Collection<PontoGps>) i.getArgument(0));
-            return i.getArgument(0);
+            Collection<PontoGps> novos = i.getArgument(0);
+            banco.addAll(novos);
+            return novos;
         });
         lenient().when(pontoGpsRepository.findByAtividadeIdOrderByTimestampAsc(anyLong())).thenAnswer(i ->
                 banco.stream().sorted((a, b) -> a.getTimestamp().compareTo(b.getTimestamp())).toList());
