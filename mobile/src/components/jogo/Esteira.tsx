@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { Avatar } from '../../db/jogo';
 import type { FaseCatalogo } from '../../domain/fases';
-import { Estado, Inimigo, progressoDaVolta } from '../../domain/idle';
+import { abatidosNaVolta, Estado, Inimigo, progressoDaVolta } from '../../domain/idle';
 import { cores, espaco, fontes } from '../../theme';
 import type { BauEncontrado, EfeitoLoot } from '../../state/useEsteira';
 import { COR_BAU, ROTULO_BAU } from '../../domain/loja';
@@ -41,7 +41,9 @@ export function Esteira({ estado, fase, avatar, vidaMaxHeroi, efeitos = [], baus
   const tile = 40;
   const deslocChao = -((estado.pos * ppu) % tile);
   const deslocMorro = -((estado.pos * ppu * 0.4) % 120);
+  // Barra da fase = monstros derrotados nesta tentativa (não o tempo nem a posição)
   const pct = Math.round(progressoDaVolta(estado) * 100);
+  const contagem = abatidosNaVolta(estado);
   const sprites = SPRITES_FASE[fase.numero] ?? SPRITES_FASE[1];
 
   return (
@@ -180,7 +182,9 @@ export function Esteira({ estado, fase, avatar, vidaMaxHeroi, efeitos = [], baus
         {/* Progresso da fase (Figma) */}
         <View style={estilos.progresso}>
           <View style={estilos.linhaProgresso}>
-            <Text style={estilos.rotuloProgresso}>Progresso da fase</Text>
+            <Text style={estilos.rotuloProgresso}>
+              Progresso da fase · {contagem.abatidos}/{contagem.total} monstros
+            </Text>
             <Text style={estilos.rotuloProgresso}>{pct}%</Text>
           </View>
           <View style={estilos.trilho}>

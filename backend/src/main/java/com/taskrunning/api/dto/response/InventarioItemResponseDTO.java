@@ -12,5 +12,7 @@ public record InventarioItemResponseDTO(
         int bonusForca,
         int bonusVida,
         boolean equipado,
-        int valorVenda // moedas recebidas ao vender (calculado pelo servidor)
+        int valorVenda, // moedas recebidas ao vender (calculado pelo servidor)
+        int bonusArmadura,
+        int bonusAgilidade
 ) {}

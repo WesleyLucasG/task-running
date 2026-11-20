@@ -70,12 +70,13 @@ public class JogoService {
 
     private void inicializarItens() {
         // Catálogo idêntico ao mobile (domain/loja.ts). IDs 1–16 fixos + 17-20 Incomum.
-        record Base(com.taskrunning.api.enums.TipoItem tipo, int forca, int vida) {}
+        // D45 (balanceamento final): atributos do item Comum × multiplicador da raridade.
+        // Arma = força; capacete/armadura = vida e armadura; botas = agilidade. Igual a mobile/src/domain/loja.ts.
         var bases = List.of(
-            new Base(com.taskrunning.api.enums.TipoItem.ARMA,     3,  0),
-            new Base(com.taskrunning.api.enums.TipoItem.CAPACETE,  1, 10),
-            new Base(com.taskrunning.api.enums.TipoItem.ARMADURA,  1, 20),
-            new Base(com.taskrunning.api.enums.TipoItem.BOTAS,     2,  5)
+            new BaseItem(com.taskrunning.api.enums.TipoItem.ARMA,     3, 0, 0, 2),
+            new BaseItem(com.taskrunning.api.enums.TipoItem.CAPACETE, 1, 4, 2, 0),
+            new BaseItem(com.taskrunning.api.enums.TipoItem.ARMADURA, 1, 6, 4, 0),
+            new BaseItem(com.taskrunning.api.enums.TipoItem.BOTAS,    1, 2, 1, 3)
         );
         String[][] nomes = {
             {"Cajado de Madeira","Caduceu de Bronze","Caduceu de Prata","Caduceu Dourado"},
@@ -85,31 +86,49 @@ public class JogoService {
         };
         String[] nomesIncomum = {"Lança de Ferro","Elmo de Ferro","Túnica Reforçada","Tênis de Trilha"};
         Raridade[] raridadesOriginais = {Raridade.COMUM, Raridade.RARO, Raridade.EPICO, Raridade.LENDARIO};
-        double[] mult = {1.0, 2.0, 4.0, 7.0};
+        double[] mult = {1.0, 2.0, 3.0, 4.5}; // Comum, Raro, Épico, Lendário (Incomum = 1,5)
 
         List<ItemCatalogo> catalogo = new java.util.ArrayList<>();
         for (int t = 0; t < 4; t++) {
             for (int r = 0; r < 4; r++) {
-                catalogo.add(item(t * 4 + r + 1, nomes[t][r], bases.get(t).tipo(), raridadesOriginais[r],
-                        (int) Math.round(bases.get(t).forca() * mult[r]),
-                        (int) Math.round(bases.get(t).vida() * mult[r])));
+                catalogo.add(item(t * 4 + r + 1, nomes[t][r], raridadesOriginais[r], bases.get(t), mult[r]));
             }
         }
         // Incomum (multiplicador 1.5)
         for (int t = 0; t < 4; t++) {
-            catalogo.add(item(17 + t, nomesIncomum[t], bases.get(t).tipo(), Raridade.INCOMUM,
-                    (int) Math.round(bases.get(t).forca() * 1.5),
-                    (int) Math.round(bases.get(t).vida() * 1.5)));
+            catalogo.add(item(17 + t, nomesIncomum[t], Raridade.INCOMUM, bases.get(t), 1.5));
         }
-        // Só insere o que falta (bancos semeados antes dos Incomuns 17–20 recebem os novos); nada é alterado
-        itemRepo.saveAll(catalogo.stream().filter(i -> !itemRepo.existsById(i.getItemId())).toList());
+        // Insere o que falta e atualiza SÓ os 4 atributos dos itens já existentes (mesmo id, nome, tipo e
+        // raridade): o inventário referencia o item pelo id, então os itens dos jogadores passam a ter os
+        // atributos do balanceamento sem apagar nem duplicar nada
+        List<ItemCatalogo> paraSalvar = new java.util.ArrayList<>();
+        for (ItemCatalogo novo : catalogo) {
+            ItemCatalogo atual = itemRepo.findById(novo.getItemId()).orElse(null);
+            if (atual == null) {
+                paraSalvar.add(novo);
+            } else if (!java.util.Objects.equals(atual.getBonusForca(), novo.getBonusForca())
+                    || !java.util.Objects.equals(atual.getBonusVida(), novo.getBonusVida())
+                    || !java.util.Objects.equals(atual.getBonusArmadura(), novo.getBonusArmadura())
+                    || !java.util.Objects.equals(atual.getBonusAgilidade(), novo.getBonusAgilidade())) {
+                atual.setBonusForca(novo.getBonusForca());
+                atual.setBonusVida(novo.getBonusVida());
+                atual.setBonusArmadura(novo.getBonusArmadura());
+                atual.setBonusAgilidade(novo.getBonusAgilidade());
+                paraSalvar.add(atual);
+            }
+        }
+        if (!paraSalvar.isEmpty()) itemRepo.saveAll(paraSalvar);
     }
 
-    private ItemCatalogo item(int id, String nome, com.taskrunning.api.enums.TipoItem tipo,
-                              Raridade raridade, int forca, int vida) {
+    private record BaseItem(com.taskrunning.api.enums.TipoItem tipo, int forca, int vida, int armadura, int agilidade) {}
+
+    private ItemCatalogo item(int id, String nome, Raridade raridade, BaseItem b, double mult) {
         ItemCatalogo i = new ItemCatalogo();
-        i.setItemId(id); i.setNome(nome); i.setTipo(tipo);
-        i.setRaridade(raridade); i.setBonusForca(forca); i.setBonusVida(vida);
+        i.setItemId(id); i.setNome(nome); i.setTipo(b.tipo()); i.setRaridade(raridade);
+        i.setBonusForca((int) Math.round(b.forca() * mult));
+        i.setBonusVida((int) Math.round(b.vida() * mult));
+        i.setBonusArmadura((int) Math.round(b.armadura() * mult));
+        i.setBonusAgilidade((int) Math.round(b.agilidade() * mult));
         return i;
     }
 
@@ -150,6 +169,9 @@ public class JogoService {
 
         int bonusForca = inventarioRepo.somaBonusForcaEquipado(usuario.getId());
         int bonusVida  = inventarioRepo.somaBonusVidaEquipado(usuario.getId());
+        int bonusArmadura  = inventarioRepo.somaBonusArmaduraEquipado(usuario.getId());
+        int bonusAgilidade = inventarioRepo.somaBonusAgilidadeEquipado(usuario.getId());
+        int agilidadeTotal = RegrasAvatar.agilidade(nivel) + bonusAgilidade;
 
         List<ProgressoFase> progressos = progressoRepo.findByUsuarioIdOrderByFaseNumeroAsc(usuario.getId());
         // RF20: o mapa mostra todas as fases; as ainda não alcançadas vêm BLOQUEADAS (chefe visível)
@@ -196,7 +218,11 @@ public class JogoService {
                         RegrasAvatar.agilidade(nivel),
                         RegrasAvatar.vidaMaxima(nivel) + bonusVida,
                         bonusForca, bonusVida,
-                        RegrasAvatar.multiplicadorRecompensa(nivel)
+                        RegrasAvatar.multiplicadorRecompensa(nivel),
+                        bonusArmadura, bonusAgilidade, agilidadeTotal,
+                        RegrasAvatar.forcaBase(nivel) + bonusForca,
+                        RegrasAvatar.intervaloAtaqueMs(agilidadeTotal),
+                        RegrasAvatar.reducaoDano(bonusArmadura)
                 ),
                 new EstadoJogoResponseDTO.AparenciaDTO(
                         ap.getGenero(), ap.getCabelo(), ap.getCorCabelo(),
@@ -561,6 +587,11 @@ public class JogoService {
                 reg.getId(), reg.getItem().getItemId(), reg.getItem().getNome(),
                 reg.getItem().getTipo(), reg.getItem().getRaridade(),
                 reg.getItem().getBonusForca(), reg.getItem().getBonusVida(),
-                reg.isEquipado(), com.taskrunning.api.util.RegrasVenda.valor(reg.getItem().getRaridade()));
+                reg.isEquipado(), com.taskrunning.api.util.RegrasVenda.valor(reg.getItem().getRaridade()),
+                valorOuZero(reg.getItem().getBonusArmadura()), valorOuZero(reg.getItem().getBonusAgilidade()));
+    }
+
+    private static int valorOuZero(Integer v) {
+        return v == null ? 0 : v;
     }
 }

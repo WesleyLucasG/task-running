@@ -10,9 +10,9 @@ import java.util.function.DoubleSupplier;
  * motor do app (mobile/src/domain/idle.ts); aqui ficam só as recompensas, que o servidor decide.
  *
  * Limites:
- * - 50 abates recompensados por dia e no máximo 2 baús de monstro por dia (data de Brasília);
- * - ritmo: o motor da esteira, mesmo com um herói que derrota tudo num golpe, não passa de
- *   6 abates em 10 s nem de 28 em 60 s (intervalo mínimo medido: 1,9 s). O servidor aceita até
+ * - 50 abates recompensados por dia e no máximo 3 baús de monstro por dia (data de Brasília);
+ * - ritmo: o motor da esteira (10 a 30 monstros por fase, D45), mesmo com um herói que derrota tudo
+ *   num golpe, não passa de 6 abates em 10 s nem de 30 em 60 s (intervalo mínimo medido: 1,9 s). O servidor aceita até
  *   8 em 10 s e 32 em 60 s (folga para requisições que chegam juntas pela rede); acima disso o abate
  *   é registrado sem recompensa.
  * Limitação conhecida: o combate é simulado no aparelho, então o servidor não tem como provar que
@@ -22,13 +22,14 @@ import java.util.function.DoubleSupplier;
 public final class RegrasMonstro {
 
     public static final int LIMITE_DIARIO_ABATES = 50;
-    public static final int LIMITE_DIARIO_BAUS = 2;
+    public static final int LIMITE_DIARIO_BAUS = 3; // D45: era 2 (fases mais longas, vida menor)
     public static final int MAX_ABATES_10S = 8;
     public static final int MAX_ABATES_60S = 32;
 
     private static final int[] XP = {1, 2, 3, 4, 5};
     private static final int[] MOEDAS = {1, 1, 2, 2, 3};
-    private static final double[] CHANCE_BAU = {0.02, 0.03, 0.04, 0.05, 0.06};
+    /** D45: chance de baú por abate (antes 2–6%). Raridades (Tabela B) sem alteração. */
+    private static final double[] CHANCE_BAU = {0.04, 0.05, 0.06, 0.07, 0.08};
     /** Pesos (%) de Comum, Incomum e Raro por fase (Tabela B). */
     private static final int[][] RARIDADE = {
             {85, 15, 0},

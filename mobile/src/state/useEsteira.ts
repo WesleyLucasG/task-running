@@ -167,7 +167,8 @@ export function useEsteira() {
             })
             .catch((e) => registrar(e instanceof Error ? e.message : String(e)));
         }
-        if (ev.tipo === 'HEROI_DERROTADO') registrar('Seu herói caiu! Recomeçando a fase com vida cheia.');
+        if (ev.tipo === 'HEROI_DERROTADO')
+          registrar('Seu herói caiu! A fase recomeça do início com vida cheia (XP, moedas e itens mantidos).');
         if (ev.tipo === 'CHEFE_SELADO') registrar(`Hermes: ${ev.motivo}`);
         if (ev.tipo === 'CONFRONTO_FIM') {
           registrarConfronto(usuario.id, ev.dano)

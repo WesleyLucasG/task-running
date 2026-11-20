@@ -43,9 +43,9 @@ test('barra de XP: usa o valor do servidor quando existe e não divide por zero 
   assert.equal(max.fracao, 1);
 });
 
-test('Tabela A: vida e dano dos monstros por fase', () => {
-  assert.deepEqual([1, 2, 3, 4, 5].map((f) => statsMonstro(f).vidaMax), [25, 40, 58, 80, 105]);
-  assert.deepEqual([1, 2, 3, 4, 5].map((f) => statsMonstro(f).dano), [4, 6, 8, 11, 14]);
+test('D45: vida e dano dos monstros por fase (balanceamento final)', () => {
+  assert.deepEqual([1, 2, 3, 4, 5].map((f) => statsMonstro(f).vidaMax), [18, 30, 45, 62, 78]);
+  assert.deepEqual([1, 2, 3, 4, 5].map((f) => statsMonstro(f).dano), [2, 3, 4, 5, 5]);
 });
 
 // Simula voltas completas com gerador fixo: true se o herói chega ao fim da fase sem morrer
@@ -54,7 +54,8 @@ function venceVolta(fase, nivel, bonusForca = 0, bonusVida = 0) {
   const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
   const heroi = calcularStatsHeroi({
     forcaBase: 10 + 2 * (nivel - 1),
-    vidaMaxima: 100 + 10 * (nivel - 1),
+    vidaMaxima: 25 + 10 * (nivel - 1),
+    agilidade: 2 * (nivel - 1),
     bonusForca,
     bonusVida,
     pontos: { forca: 0, vitalidade: 0, velocidade: 0 },
@@ -74,12 +75,11 @@ function venceVolta(fase, nivel, bonusForca = 0, bonusVida = 0) {
   return voltas > 0 && mortes === 0;
 }
 
-test('balanceamento: progressão real de dificuldade e fase 5 vencível no nível 10 com itens', () => {
+test('balanceamento: fase 1 no nível 1 sem itens; fases altas exigem nível e itens', () => {
   assert.ok(venceVolta(1, 1), 'fase 1 no nível 1');
-  assert.ok(!venceVolta(3, 1), 'fase 3 não é vencida no nível 1');
-  assert.ok(venceVolta(3, 4), 'fase 3 no nível 4');
-  assert.ok(!venceVolta(5, 5), 'fase 5 não é vencida no nível 5 sem itens');
-  assert.ok(venceVolta(5, 10, 14, 70), 'fase 5 no nível 10 com itens raros');
+  assert.ok(!venceVolta(2, 1), 'fase 2 não é vencida no nível 1 sem itens');
+  assert.ok(!venceVolta(3, 3), 'fase 3 não é vencida no nível 3 sem itens');
+  assert.ok(!venceVolta(5, 10), 'fase 5 não é vencida no nível 10 sem itens');
 });
 
 test('espada: 3 quadros de ataque logo após o golpe e descanso depois; só lê o instante do golpe', () => {

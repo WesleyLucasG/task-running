@@ -9,7 +9,7 @@ import { EstadoMapa, obterEstadoMapa, Situacao } from '../../db/fases';
 import { concluirAtividadeComRecompensa } from '../../db/jogo';
 import type { FaseCatalogo } from '../../domain/fases';
 import { calcularPace, estimarCalorias } from '../../domain/geo';
-import { POSICOES_MONSTROS } from '../../domain/idle';
+import { quantidadeMonstros } from '../../domain/idle';
 import { apiConfigurada } from '../../services/api';
 import { sincronizarPendentes } from '../../services/sincronizacao';
 import { useAuth } from '../../state/AuthContext';
@@ -199,7 +199,7 @@ function CartaoFase({
           )}
         </View>
         <Text style={estilos.bioma}>
-          {bioma} • {POSICOES_MONSTROS.length} MONSTROS + CHEFE
+          {bioma} • {quantidadeMonstros(fase.numero)} MONSTROS + CHEFE
         </Text>
         <Text style={estilos.descricao}>&quot;{fase.descricao}&quot;</Text>
 

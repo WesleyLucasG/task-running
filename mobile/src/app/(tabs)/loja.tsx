@@ -160,6 +160,8 @@ export default function Loja() {
                 <View style={estilos.bonus}>
                   {item.bonusForca > 0 && <Text style={estilos.chip}>⚔ +{item.bonusForca}</Text>}
                   {item.bonusVida > 0 && <Text style={estilos.chip}>❤ +{item.bonusVida}</Text>}
+                  {item.bonusArmadura > 0 && <Text style={estilos.chip}>🛡 +{item.bonusArmadura}</Text>}
+                  {item.bonusAgilidade > 0 && <Text style={estilos.chip}>⚡ +{item.bonusAgilidade}</Text>}
                 </View>
                 <View style={estilos.linhaPreco}>
                   <View style={estilos.moeda}>

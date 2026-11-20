@@ -18,8 +18,18 @@ import {
   moverItemDeLocal,
   venderItem,
 } from '../../db/inventario';
-import { multiplicadorAgilidade, progressoXp } from '../../domain/jogo';
-import { COR_RARIDADE, RARIDADES, ROTULO_BAU, ROTULO_RARIDADE, ROTULO_TIPO, TIPOS_ITEM, TipoItem } from '../../domain/loja';
+import { progressoXp } from '../../domain/jogo';
+import { intervaloAtaque, reducaoPorArmadura } from '../../domain/idle';
+import {
+  COR_RARIDADE,
+  RARIDADES,
+  ROTULO_BAU,
+  ROTULO_RARIDADE,
+  ROTULO_TIPO,
+  textoAtributos,
+  TIPOS_ITEM,
+  TipoItem,
+} from '../../domain/loja';
 import { valorDescarte } from '../../domain/recompensas';
 import { apiConfigurada } from '../../services/api';
 import { avisarJogadorAlterado } from '../../state/sinais';
@@ -73,10 +83,15 @@ export default function Inventario() {
   const equipados = useMemo(() => itens.filter((i) => i.equipado), [itens]);
   const mochila = useMemo(() => itens.filter((i) => i.local === 'INVENTARIO' && !i.equipado).sort(ordem), [itens]);
   const guardados = useMemo(() => itens.filter((i) => i.local === 'BAU').sort(ordem), [itens]);
-  const bonus = equipados.reduce((s, i) => ({ forca: s.forca + i.bonusForca, vida: s.vida + i.bonusVida }), {
-    forca: 0,
-    vida: 0,
-  });
+  const bonus = equipados.reduce(
+    (s, i) => ({
+      forca: s.forca + i.bonusForca,
+      vida: s.vida + i.bonusVida,
+      armadura: s.armadura + (i.bonusArmadura ?? 0),
+      agilidade: s.agilidade + (i.bonusAgilidade ?? 0),
+    }),
+    { forca: 0, vida: 0, armadura: 0, agilidade: 0 },
+  );
   const slotTamanho = Math.floor((larguraGrade - espaco.sm * (COLUNAS - 1)) / COLUNAS);
 
   async function executar(acao: () => Promise<unknown>) {
@@ -192,13 +207,25 @@ export default function Inventario() {
                   extra={bonus.forca > 0 ? `+${bonus.forca} itens` : 'base'}
                   cor={cores.laranja}
                 />
-                <Atributo icone="heart" rotulo="VIDA" valor={avatar.vidaMaxima} extra={`nível ${avatar.nivel}`} cor={cores.erro} />
-                <Atributo icone="shield-half" rotulo="ARMADURA" valor={bonus.vida} extra="vida dos itens" cor="#60A5FA" />
+                <Atributo
+                  icone="heart"
+                  rotulo="VIDA"
+                  valor={avatar.vidaMaxima + bonus.vida}
+                  extra={bonus.vida > 0 ? `+${bonus.vida} itens` : `nível ${avatar.nivel}`}
+                  cor={cores.erro}
+                />
+                <Atributo
+                  icone="shield-half"
+                  rotulo="ARMADURA"
+                  valor={bonus.armadura}
+                  extra={`-${Math.round(reducaoPorArmadura(bonus.armadura) * 100)}% dano`}
+                  cor="#60A5FA"
+                />
                 <Atributo
                   icone="flash"
                   rotulo="AGILIDADE"
-                  valor={avatar.agilidade}
-                  extra={`+${Math.round((multiplicadorAgilidade(avatar.agilidade) - 1) * 100)}% corrida`}
+                  valor={avatar.agilidade + bonus.agilidade}
+                  extra={`${(1000 / intervaloAtaque(avatar.agilidade + bonus.agilidade)).toFixed(2)} golpes/s`}
                   cor={cores.douradoClaro}
                 />
               </View>
@@ -267,10 +294,7 @@ export default function Inventario() {
                   <Text style={[estilos.detalhe, { color: COR_RARIDADE[selecionado.item.raridade] }]}>
                     {ROTULO_RARIDADE[selecionado.item.raridade]} · {ROTULO_TIPO[selecionado.item.tipo]}
                   </Text>
-                  <Text style={estilos.detalhe}>
-                    {selecionado.item.bonusForca > 0 ? `⚔ +${selecionado.item.bonusForca} força  ` : ''}
-                    {selecionado.item.bonusVida > 0 ? `❤ +${selecionado.item.bonusVida} vida` : ''}
-                  </Text>
+                  <Text style={estilos.detalhe}>{textoAtributos(selecionado.item)}</Text>
                 </View>
               </View>
 

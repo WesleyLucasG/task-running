@@ -56,6 +56,8 @@ class RecompensasRpgIntegracaoTest {
     @Autowired private AbateMonstroRepository abateRepository;
     @Autowired private BauPendenteRepository bauRepository;
     @Autowired private InventarioItemRepository inventarioRepository;
+    @Autowired private ItemCatalogoRepository itemCatalogoRepository;
+    @Autowired private com.taskrunning.api.service.JogoService jogoService;
 
     // ─── auxiliares ──────────────────────────────────────────────────────────
 
@@ -167,16 +169,16 @@ class RecompensasRpgIntegracaoTest {
     }
 
     @Test
-    @DisplayName("Limites diários: 50 abates recompensados e no máximo 2 baús de monstro por dia")
+    @DisplayName("Limites diários: 50 abates recompensados e no máximo 3 baús de monstro por dia")
     void limitesDiarios() throws Exception {
         String a = conta("Perseu", "perseu@olimpo.com", "529.982.247-25");
         Usuario u = usuario("perseu@olimpo.com");
 
-        abatesAntigos(u, 48, true); // 48 abates hoje já com baú → limite de 2 baús atingido
+        abatesAntigos(u, 48, true); // 48 abates hoje já com baú → limite de 3 baús atingido
         for (int i = 0; i < 2; i++) {
             JsonNode r = abater(a, UUID.randomUUID().toString());
             assertTrue(r.get("recompensado").asBoolean());
-            assertTrue(r.get("bauId").isNull(), "limite de 2 baús de monstro por dia já atingido");
+            assertTrue(r.get("bauId").isNull(), "limite de 3 baús de monstro por dia já atingido");
         }
         JsonNode r51 = abater(a, UUID.randomUUID().toString());
         assertFalse(r51.get("recompensado").asBoolean());
@@ -247,7 +249,10 @@ class RecompensasRpgIntegracaoTest {
         assertEquals(2700, at.get("experiencia").asInt(), "XP total preservado");
         assertEquals(0, at.get("xpParaProximoNivel").asInt());
         assertEquals(28, at.get("forcaBase").asInt());
-        assertEquals(190, at.get("vidaMaxima").asInt()); // sem itens: só a vida do nível
+        assertEquals(115, at.get("vidaMaxima").asInt()); // D45: sem itens, só a vida do nível 10
+        assertEquals(18, at.get("agilidadeTotal").asInt());
+        assertEquals(847, at.get("intervaloAtaqueMs").asInt());
+        assertEquals(28, at.get("danoPorGolpe").asInt());
         assertEquals(10, estado(a).get("carteira").get("nivel").asInt());
     }
 
@@ -316,5 +321,98 @@ class RecompensasRpgIntegracaoTest {
         assertEquals("BRONZE", baus.get(0).get("tipo").asText());
         enviar("/api/hidratacao/registrar", "{\"quantidadeMl\":300}", a, 201);
         assertEquals(1, chamar(get("/api/jogo/baus"), a, 200).size(), "1 Bronze por dia");
+    }
+
+    // ─── D45: balanceamento final ────────────────────────────────────────────
+
+    @Test
+    @DisplayName("D45: nível 1 começa com 25 de vida, sem itens: dano 10, armadura 0, intervalo 1000 ms")
+    void atributosIniciais() throws Exception {
+        String a = conta("Talos", "talos.d45@olimpo.com", "467.414.501-57");
+        JsonNode at = estado(a).get("atributos");
+        assertEquals(1, at.get("nivel").asInt());
+        assertEquals(25, at.get("vidaMaxima").asInt());
+        assertEquals(10, at.get("danoPorGolpe").asInt());
+        assertEquals(0, at.get("bonusArmadura").asInt());
+        assertEquals(0, at.get("bonusAgilidade").asInt());
+        assertEquals(1000, at.get("intervaloAtaqueMs").asInt());
+        assertEquals(0.0, at.get("reducaoDano").asDouble(), 1e-9);
+    }
+
+    @Test
+    @DisplayName("D45: os 4 atributos do item equipado entram no estado; desequipar recalcula tudo")
+    void quatroAtributosNoCombate() throws Exception {
+        String a = conta("Dédalo", "dedalo.d45@olimpo.com", "701.414.091-42");
+        Usuario u = usuario("dedalo.d45@olimpo.com");
+        // Um baú Lendário (sempre 1 dos 4 lendários) e um Raro: abre os dois e equipa (slots diferentes ou não)
+        List<JsonNode> itens = new ArrayList<>();
+        for (TipoBau t : new TipoBau[]{TipoBau.LENDARIO, TipoBau.RARO}) {
+            BauPendente bau = new BauPendente();
+            bau.setUsuario(u);
+            bau.setTipo(t);
+            itens.add(enviar("/api/jogo/baus/" + bauRepository.save(bau).getId() + "/abrir", "", a, 200));
+        }
+        for (JsonNode i : itens) {
+            for (String campo : new String[]{"bonusForca", "bonusVida", "bonusArmadura", "bonusAgilidade"}) {
+                assertTrue(i.has(campo) && i.get(campo).asInt() >= 0, campo);
+            }
+            assertTrue(i.get("bonusArmadura").asInt() + i.get("bonusAgilidade").asInt() > 0,
+                    "todo item tem armadura ou agilidade no balanceamento: " + i.get("nome").asText());
+        }
+        JsonNode lend = itens.get(0);
+        chamar(put("/api/jogo/inventario/" + lend.get("id").asLong() + "/equipar"), a, 204);
+
+        JsonNode at = estado(a).get("atributos");
+        int arm = lend.get("bonusArmadura").asInt();
+        int agi = lend.get("bonusAgilidade").asInt();
+        assertEquals(lend.get("bonusForca").asInt(), at.get("bonusForca").asInt());
+        assertEquals(arm, at.get("bonusArmadura").asInt());
+        assertEquals(agi, at.get("bonusAgilidade").asInt());
+        assertEquals(25 + lend.get("bonusVida").asInt(), at.get("vidaMaxima").asInt(), "vida = nível + itens, uma vez só");
+        assertEquals(10 + lend.get("bonusForca").asInt(), at.get("danoPorGolpe").asInt(), "força base + força do item, uma vez só");
+        assertEquals(agi, at.get("agilidadeTotal").asInt()); // nível 1: agilidade do nível = 0
+        assertEquals(com.taskrunning.api.util.RegrasAvatar.intervaloAtaqueMs(agi), at.get("intervaloAtaqueMs").asInt());
+        assertEquals(com.taskrunning.api.util.RegrasAvatar.reducaoDano(arm), at.get("reducaoDano").asDouble(), 1e-9);
+
+        // Desequipar: tudo volta ao valor do nível
+        chamar(put("/api/jogo/inventario/" + lend.get("id").asLong() + "/equipar"), a, 204);
+        at = estado(a).get("atributos");
+        assertEquals(25, at.get("vidaMaxima").asInt());
+        assertEquals(0, at.get("bonusArmadura").asInt());
+        assertEquals(1000, at.get("intervaloAtaqueMs").asInt());
+        // RN10 intacta: o bônus de corrida usa só a agilidade do nível
+        assertEquals(1.0, at.get("multiplicadorRecompensa").asDouble(), 1e-9);
+    }
+
+    @Test
+    @DisplayName("D45: catálogo com os 4 atributos; itens antigos são atualizados no lugar (mesmo id, sem duplicar)")
+    void catalogoSincronizado() {
+        long total = itemCatalogoRepository.count();
+        assertEquals(20, total);
+        var cajado = itemCatalogoRepository.findById(1).orElseThrow(); // Arma Comum
+        assertEquals(3, cajado.getBonusForca());
+        assertEquals(0, cajado.getBonusVida());
+        assertEquals(0, cajado.getBonusArmadura());
+        assertEquals(2, cajado.getBonusAgilidade());
+        var manto = itemCatalogoRepository.findById(12).orElseThrow(); // Armadura Lendária
+        assertEquals(5, manto.getBonusForca());
+        assertEquals(27, manto.getBonusVida());
+        assertEquals(18, manto.getBonusArmadura());
+        assertEquals(0, manto.getBonusAgilidade());
+
+        // Banco antigo: item com os valores de antes (força/vida antigos, sem armadura/agilidade)
+        var tunica = itemCatalogoRepository.findById(9).orElseThrow();
+        tunica.setBonusForca(1);
+        tunica.setBonusVida(20);
+        tunica.setBonusArmadura(0);
+        tunica.setBonusAgilidade(0);
+        itemCatalogoRepository.save(tunica);
+        jogoService.inicializarCatalogos(); // o que roda na inicialização do servidor após o deploy
+        tunica = itemCatalogoRepository.findById(9).orElseThrow();
+        assertEquals(1, tunica.getBonusForca());
+        assertEquals(6, tunica.getBonusVida());
+        assertEquals(4, tunica.getBonusArmadura());
+        assertEquals("Túnica Simples", tunica.getNome());
+        assertEquals(total, itemCatalogoRepository.count(), "nenhum item novo/duplicado");
     }
 }

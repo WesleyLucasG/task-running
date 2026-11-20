@@ -13,6 +13,8 @@ export type ItemRevelado = {
   raridade: Raridade;
   bonusForca: number;
   bonusVida: number;
+  bonusArmadura?: number;
+  bonusAgilidade?: number;
 };
 
 type Props = {
@@ -134,6 +136,8 @@ export function RevelacaoItem({ visivel, bau, abrir, itemPronto, titulo, aoFecha
               <View style={estilos.bonus}>
                 {mostrado.bonusForca > 0 && <Text style={estilos.chip}>⚔ +{mostrado.bonusForca} força</Text>}
                 {mostrado.bonusVida > 0 && <Text style={estilos.chip}>❤ +{mostrado.bonusVida} vida</Text>}
+                {(mostrado.bonusArmadura ?? 0) > 0 && <Text style={estilos.chip}>🛡 +{mostrado.bonusArmadura} armadura</Text>}
+                {(mostrado.bonusAgilidade ?? 0) > 0 && <Text style={estilos.chip}>⚡ +{mostrado.bonusAgilidade} agilidade</Text>}
               </View>
               <Text style={estilos.aviso}>Enviado ao Inventário.</Text>
               <Botao titulo="ÓTIMO!" onPress={fechar} estilo={{ alignSelf: 'stretch' }} />

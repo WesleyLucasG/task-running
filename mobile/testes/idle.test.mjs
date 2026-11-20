@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  calcularStatsHeroi, novaVolta, passo, pontosGanhos, POSICOES_MONSTROS,
+  calcularStatsHeroi, novaVolta, passo, pontosGanhos, posicoesMonstros, quantidadeMonstros,
 } from '../src/domain/idle.ts';
 
 const fixo = () => 0.5; // sem variação aleatória (golpe = valor exato)
@@ -30,13 +30,13 @@ test('atributos alteram dano, vida e velocidade', () => {
   const s = calcularStatsHeroi({ ...base, bonusForca: 3, bonusVida: 20, pontos: { forca: 2, vitalidade: 3, velocidade: 10 } });
   assert.equal(s.dano, 10 + 3 + 4);
   assert.equal(s.vidaMax, 100 + 20 + 30);
-  assert.equal(s.intervaloMs, 667);
+  assert.equal(s.intervaloMs, 700); // 10 pontos de velocidade = agilidade 50 → teto de 30% (700 ms)
 });
 
 test('herói da fase 1 vence os monstros e encontra o chefe selado', () => {
   const ctx = { fase: 1, heroi: calcularStatsHeroi(base), chefe: chefeSelado };
   const { eventos } = rodar(ctx, novaVolta(ctx), 120000, (e) => e.tipo === 'CHEFE_SELADO');
-  assert.equal(eventos.filter((e) => e.tipo === 'MONSTRO_DERROTADO').length, POSICOES_MONSTROS.length);
+  assert.equal(eventos.filter((e) => e.tipo === 'MONSTRO_DERROTADO').length, quantidadeMonstros(1));
   assert.ok(eventos.some((e) => e.tipo === 'CHEFE_SELADO'));
   assert.ok(!eventos.some((e) => e.tipo === 'HEROI_DERROTADO'));
 });
@@ -46,7 +46,7 @@ test('herói fraco morre e volta ao início com vida cheia', () => {
   let { estado, eventos } = rodar(ctx, novaVolta(ctx), 120000, (e) => e.tipo === 'HEROI_DERROTADO');
   assert.ok(eventos.some((e) => e.tipo === 'HEROI_DERROTADO'));
   ({ estado } = rodar(ctx, estado, 2000));
-  assert.equal(estado.pos > 0 && estado.pos < POSICOES_MONSTROS[0], true);
+  assert.equal(estado.pos > 0 && estado.pos < posicoesMonstros(4)[0], true);
   assert.equal(estado.vida, ctx.heroi.vidaMax);
 });
 

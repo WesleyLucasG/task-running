@@ -30,6 +30,14 @@ type AtributosApi = {
   bonusForca: number;
   bonusVida: number;
   multiplicadorRecompensa: number;
+  // D45 (servidor novo): atributos de combate calculados no servidor. Opcionais para não quebrar com um
+  // servidor antigo (aí valem 0 e o motor usa as mesmas fórmulas como reserva).
+  bonusArmadura?: number;
+  bonusAgilidade?: number;
+  agilidadeTotal?: number;
+  danoPorGolpe?: number;
+  intervaloAtaqueMs?: number;
+  reducaoDano?: number;
 };
 
 type FaseApi = {
@@ -59,6 +67,8 @@ type ItemApi = {
   bonusVida: number;
   equipado: boolean;
   valorVenda?: number;
+  bonusArmadura?: number;
+  bonusAgilidade?: number;
 };
 
 const CHAVE_CACHE = 'tr:cache-estado-jogo';
@@ -167,6 +177,8 @@ const paraItem = (i: ItemApi): ItemInventario => ({
   raridade: i.raridade,
   bonusForca: i.bonusForca,
   bonusVida: i.bonusVida,
+  bonusArmadura: i.bonusArmadura ?? 0, // item antigo / servidor antigo: 0
+  bonusAgilidade: i.bonusAgilidade ?? 0,
   equipado: i.equipado,
   local: 'INVENTARIO',
   valorVenda: i.valorVenda,
@@ -188,9 +200,27 @@ export async function alternarEquipado(registroId: string): Promise<void> {
   await obterEstado().catch(() => {});
 }
 
-export async function bonusEquipados(): Promise<{ forca: number; vida: number }> {
-  const e = await obterEstado();
-  return { forca: e.atributos.bonusForca, vida: e.atributos.bonusVida };
+export type BonusCombate = {
+  forca: number;
+  vida: number;
+  armadura: number;
+  agilidade: number;
+  // Valores finais do servidor (D45); ausentes com servidor antigo
+  servidor?: { intervaloAtaqueMs: number; reducaoDano: number };
+};
+
+export async function bonusEquipados(): Promise<BonusCombate> {
+  const a = (await obterEstado()).atributos;
+  return {
+    forca: a.bonusForca,
+    vida: a.bonusVida,
+    armadura: a.bonusArmadura ?? 0,
+    agilidade: a.bonusAgilidade ?? 0,
+    servidor:
+      a.intervaloAtaqueMs != null && a.reducaoDano != null
+        ? { intervaloAtaqueMs: a.intervaloAtaqueMs, reducaoDano: a.reducaoDano }
+        : undefined,
+  };
 }
 
 // ─── Monstros da esteira (extensão aprovada) ────────────────────────────────

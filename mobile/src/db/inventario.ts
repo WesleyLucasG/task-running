@@ -17,6 +17,8 @@ export type ItemInventario = {
   raridade: Raridade;
   bonusForca: number;
   bonusVida: number;
+  bonusArmadura: number; // D45; 0 em itens antigos e no modo local
+  bonusAgilidade: number;
   equipado: boolean;
   local: LocalItem; // INVENTARIO ou BAU (baú de armazenamento)
   valorVenda?: number; // modo API: moedas da venda, calculadas pelo servidor
@@ -66,6 +68,8 @@ export async function abrirBau(usuarioId: string, bauId: string): Promise<ItemIn
       raridade: item.raridade,
       bonusForca: item.bonusForca,
       bonusVida: item.bonusVida,
+      bonusArmadura: 0, // modo local: o banco do aparelho não guarda armadura/agilidade
+      bonusAgilidade: 0,
       equipado: false,
       local: 'INVENTARIO',
     };
@@ -103,6 +107,8 @@ export async function listarInventario(usuarioId: string): Promise<ItemInventari
     raridade: l.raridade,
     bonusForca: l.bonus_forca,
     bonusVida: l.bonus_vida,
+    bonusArmadura: 0,
+    bonusAgilidade: 0,
     equipado: l.equipado === 1,
     local: l.local,
   }));
@@ -137,7 +143,7 @@ export async function alternarEquipado(usuarioId: string, registroId: string): P
 }
 
 // Soma dos bônus dos itens equipados (será usada no dano contra o chefe, RN12)
-export async function bonusEquipados(usuarioId: string): Promise<{ forca: number; vida: number }> {
+export async function bonusEquipados(usuarioId: string): Promise<Remoto.BonusCombate> {
   if (apiConfigurada()) return Remoto.bonusEquipados();
   const db = await getDbLoja();
   const l = await db.getFirstAsync<{ forca: number; vida: number }>(
@@ -146,7 +152,8 @@ export async function bonusEquipados(usuarioId: string): Promise<{ forca: number
       WHERE inv.usuario_id = ? AND inv.equipado = 1`,
     [usuarioId],
   );
-  return { forca: l?.forca ?? 0, vida: l?.vida ?? 0 };
+  // Modo local (sem servidor): o banco do aparelho só guarda força e vida; armadura/agilidade valem 0
+  return { forca: l?.forca ?? 0, vida: l?.vida ?? 0, armadura: 0, agilidade: 0 };
 }
 // Baú de armazenamento (D19): guardar/retirar sem alterar o item
 export async function moverItemDeLocal(usuarioId: string, registroId: string, destino: LocalItem): Promise<void> {

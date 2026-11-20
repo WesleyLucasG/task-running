@@ -27,10 +27,13 @@ class RegrasProgressaoTest {
             }
             assertEquals(10 + 2 * (n - 1), RegrasAvatar.forcaBase(n));
             assertEquals(2 * (n - 1), RegrasAvatar.agilidade(n));
-            assertEquals(100 + 10 * (n - 1), RegrasAvatar.vidaMaxima(n));
+            assertEquals(25 + 10 * (n - 1), RegrasAvatar.vidaMaxima(n));
         }
+        // D45: tabela de vida aprovada
+        int[] vida = {25, 35, 45, 55, 65, 75, 85, 95, 105, 115};
+        for (int n = 1; n <= 10; n++) assertEquals(vida[n - 1], RegrasAvatar.vidaMaxima(n), "vida do nível " + n);
         assertEquals(28, RegrasAvatar.forcaBase(10));
-        assertEquals(190, RegrasAvatar.vidaMaxima(10));
+        assertEquals(115, RegrasAvatar.vidaMaxima(10));
         assertEquals(0, RegrasAvatar.xpParaProximoNivel(10), "nível máximo não tem próximo nível");
     }
 
@@ -63,14 +66,49 @@ class RegrasProgressaoTest {
     void tabelaDeMonstros() {
         int[] xp = {1, 2, 3, 4, 5};
         int[] moedas = {1, 1, 2, 2, 3};
-        double[] chance = {0.02, 0.03, 0.04, 0.05, 0.06};
+        double[] chance = {0.04, 0.05, 0.06, 0.07, 0.08}; // D45
         for (int f = 1; f <= 5; f++) {
             assertEquals(xp[f - 1], RegrasMonstro.xpPorAbate(f));
             assertEquals(moedas[f - 1], RegrasMonstro.moedasPorAbate(f));
             assertEquals(chance[f - 1], RegrasMonstro.chanceBau(f), 1e-9);
         }
         assertEquals(50, RegrasMonstro.LIMITE_DIARIO_ABATES);
-        assertEquals(2, RegrasMonstro.LIMITE_DIARIO_BAUS);
+        assertEquals(3, RegrasMonstro.LIMITE_DIARIO_BAUS);
+    }
+
+    @Test
+    @DisplayName("D45: armadura reduz o dano recebido com teto de 60% e golpe mínimo 1")
+    void armadura() {
+        assertEquals(0.0, RegrasAvatar.reducaoDano(0), 1e-9);
+        assertEquals(0.2, RegrasAvatar.reducaoDano(10), 1e-9);
+        assertEquals(0.5, RegrasAvatar.reducaoDano(40), 1e-9);
+        assertEquals(0.6, RegrasAvatar.reducaoDano(500), 1e-9, "teto de 60%");
+        assertEquals(0.0, RegrasAvatar.reducaoDano(-5), 1e-9);
+        assertEquals(5, RegrasAvatar.danoRecebido(5, 0));
+        assertEquals(4, RegrasAvatar.danoRecebido(5, 10)); // 5 × 0,8
+        assertEquals(1, RegrasAvatar.danoRecebido(1, 10_000), "nunca zero: ninguém fica invulnerável");
+        assertEquals(2, RegrasAvatar.danoRecebido(5, 10_000), "60% de 5 = 3 absorvidos, 2 recebidos");
+        for (int arm = 0; arm <= 1000; arm += 7) {
+            for (int golpe = 1; golpe <= 30; golpe++) {
+                int d = RegrasAvatar.danoRecebido(golpe, arm);
+                assertTrue(d >= 1 && d <= golpe, "golpe " + golpe + " armadura " + arm);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("D45: agilidade reduz o intervalo entre ataques, no máximo 30% (700 ms)")
+    void agilidade() {
+        assertEquals(1000, RegrasAvatar.intervaloAtaqueMs(0));
+        assertEquals(847, RegrasAvatar.intervaloAtaqueMs(18)); // nível 10 sem itens
+        assertEquals(700, RegrasAvatar.intervaloAtaqueMs(43));
+        assertEquals(700, RegrasAvatar.intervaloAtaqueMs(10_000), "teto: ataques nunca descontrolados");
+        int anterior = Integer.MAX_VALUE;
+        for (int a = 0; a <= 100; a++) {
+            int i = RegrasAvatar.intervaloAtaqueMs(a);
+            assertTrue(i <= anterior && i >= 700);
+            anterior = i;
+        }
     }
 
     @Test
@@ -96,10 +134,10 @@ class RegrasProgressaoTest {
             assertEquals(pesos[f - 1][1] / 100.0, cont.getOrDefault(TipoBau.INCOMUM, 0) / (double) drops, 0.02, "Incomum fase " + f);
             assertEquals(pesos[f - 1][2] / 100.0, cont.getOrDefault(TipoBau.RARO, 0) / (double) drops, 0.02, "Raro fase " + f);
         }
-        // Valores fixos: 0,0199 cai no drop; 0,02 não cai (fase 1)
-        assertEquals(TipoBau.COMUM, RegrasMonstro.sortearBau(1, sequencia(0.0199, 0.10)));
-        assertEquals(TipoBau.INCOMUM, RegrasMonstro.sortearBau(1, sequencia(0.0199, 0.90)));
-        assertNull(RegrasMonstro.sortearBau(1, sequencia(0.02, 0.0)));
+        // Valores fixos: 0,0399 cai no drop; 0,04 não cai (fase 1)
+        assertEquals(TipoBau.COMUM, RegrasMonstro.sortearBau(1, sequencia(0.0399, 0.10)));
+        assertEquals(TipoBau.INCOMUM, RegrasMonstro.sortearBau(1, sequencia(0.0399, 0.90)));
+        assertNull(RegrasMonstro.sortearBau(1, sequencia(0.04, 0.0)));
         assertEquals(TipoBau.RARO, RegrasMonstro.sortearBau(5, sequencia(0.0, 0.99)));
     }
 

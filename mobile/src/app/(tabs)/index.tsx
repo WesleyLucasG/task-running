@@ -91,7 +91,8 @@ export default function Home() {
                 {(usuario?.nome ?? 'HERÓI').toUpperCase()}
               </Text>
               <Text style={estilos.atributos}>
-                ⚔ {heroi?.dano ?? 0}   ❤ {heroi?.vidaMax ?? 0}   ⚡ {heroi ? (1000 / heroi.intervaloMs).toFixed(1) : 0}/s
+                ⚔ {heroi?.dano ?? 0}   ❤ {heroi?.vidaMax ?? 0}   🛡 {heroi ? Math.round(heroi.reducaoDano * 100) : 0}%   ⚡{' '}
+                {heroi ? (1000 / heroi.intervaloMs).toFixed(1) : 0}/s
               </Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>

@@ -27,7 +27,14 @@ public record EstadoJogoResponseDTO(
             int vidaMaxima,
             int bonusForca,
             int bonusVida,
-            double multiplicadorRecompensa
+            double multiplicadorRecompensa,
+            // D45: atributos de combate (o app usa estes valores; não recalcula)
+            int bonusArmadura,
+            int bonusAgilidade,
+            int agilidadeTotal,
+            int danoPorGolpe,
+            int intervaloAtaqueMs,
+            double reducaoDano
     ) {}
 
     public record AparenciaDTO(

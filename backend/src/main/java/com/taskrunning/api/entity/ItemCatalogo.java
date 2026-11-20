@@ -34,4 +34,12 @@ public class ItemCatalogo {
 
     @Column(name = "bonus_vida", nullable = false)
     private Integer bonusVida;
+
+    // D45: colunas novas com padrão 0 no banco (o ddl-auto acrescenta sem apagar nada; itens antigos
+    // ficam com 0 até a sincronização do catálogo na inicialização)
+    @Column(name = "bonus_armadura", nullable = false, columnDefinition = "INT DEFAULT 0 NOT NULL")
+    private Integer bonusArmadura = 0;
+
+    @Column(name = "bonus_agilidade", nullable = false, columnDefinition = "INT DEFAULT 0 NOT NULL")
+    private Integer bonusAgilidade = 0;
 }

@@ -2,7 +2,16 @@ package com.taskrunning.api.util;
 
 /**
  * D42: regras de crescimento de atributos por nível, canônicas do servidor.
- * Base nível 1: Força 10, Agilidade 0, Vida 100. Cresce +2/+2/+10 por nível.
+ * Base nível 1: Força 10, Agilidade 0, Vida 25 (D45, balanceamento final; antes 100). Cresce +2/+2/+10
+ * por nível: vida 25, 35, 45 … 115 no nível 10.
+ *
+ * D45 — combate da esteira (o app usa exatamente os valores que este servidor envia em /api/jogo/estado):
+ * - dano por golpe nos monstros = Força base do nível + Σ força dos itens equipados (a mesma soma da RN12;
+ *   cada fonte entra uma única vez). Contra o chefe vale a RN12 sem alteração (calcularDano);
+ * - armadura (Σ itens): redução do dano recebido = armadura ÷ (armadura + 40), no máximo 60%; o golpe
+ *   recebido nunca fica abaixo de 1 (ninguém fica invulnerável);
+ * - agilidade (nível + Σ itens): intervalo entre ataques = 1000 ms ÷ (1 + agilidade × 0,01), mínimo
+ *   700 ms (no máximo 30% mais rápido). A RN10 (bônus de corrida) continua usando só a agilidade do nível.
  * RN10: multiplicador de recompensa = 1 + agilidade × 0,005 (= 1 + 0,01 × (nível-1)), teto 1,5.
  *
  * RF19 (curva aprovada): para sair do nível n são necessários 50 × n + 50 XP
@@ -25,7 +34,29 @@ public final class RegrasAvatar {
     }
 
     public static int vidaMaxima(int nivel) {
-        return 100 + 10 * (nivel - 1);
+        return 25 + 10 * (nivel - 1);
+    }
+
+    public static final int INTERVALO_BASE_MS = 1000;
+    public static final int INTERVALO_MINIMO_MS = 700;
+    public static final double REDUCAO_MAXIMA = 0.6;
+    private static final double CONSTANTE_ARMADURA = 40.0;
+
+    /** Intervalo entre ataques do herói na esteira (ms), pela agilidade total (nível + itens). */
+    public static int intervaloAtaqueMs(int agilidadeTotal) {
+        int a = Math.max(0, agilidadeTotal);
+        return Math.max(INTERVALO_MINIMO_MS, (int) Math.round(INTERVALO_BASE_MS / (1.0 + a * 0.01)));
+    }
+
+    /** Fração do golpe recebido que a armadura absorve (0 a 0,6). */
+    public static double reducaoDano(int armadura) {
+        double a = Math.max(0, armadura);
+        return Math.min(REDUCAO_MAXIMA, a / (a + CONSTANTE_ARMADURA));
+    }
+
+    /** Golpe recebido depois da armadura: no mínimo 1. */
+    public static int danoRecebido(int golpe, int armadura) {
+        return Math.max(1, (int) Math.round(golpe * (1.0 - reducaoDano(armadura))));
     }
 
     public static double multiplicadorRecompensa(int nivel) {

@@ -11,6 +11,8 @@ export type ItemCatalogo = {
   raridade: Raridade;
   bonusForca: number;
   bonusVida: number;
+  bonusArmadura: number; // reduz o dano recebido (idle.ts → reducaoPorArmadura)
+  bonusAgilidade: number; // reduz o intervalo entre ataques (idle.ts → intervaloAtaque)
 };
 
 export const RARIDADES: Raridade[] = ['COMUM', 'INCOMUM', 'RARO', 'EPICO', 'LENDARIO'];
@@ -56,13 +58,16 @@ export const COR_BAU: Record<TipoBau, string> = {
   LENDARIO: '#FACC15',
 };
 
-const MULTIPLICADOR: Record<Raridade, number> = { COMUM: 1, INCOMUM: 1.5, RARO: 2, EPICO: 4, LENDARIO: 7 };
-const BASE: Record<TipoItem, { forca: number; vida: number }> = {
-  ARMA: { forca: 3, vida: 0 },
-  CAPACETE: { forca: 1, vida: 10 },
-  ARMADURA: { forca: 1, vida: 20 },
-  BOTAS: { forca: 2, vida: 5 },
+// Balanceamento final (igual ao servidor, JogoService.inicializarItens): atributos do item Comum
+// multiplicados pela raridade. Arma = força; capacete/armadura = vida e armadura; botas = agilidade.
+export const MULTIPLICADOR: Record<Raridade, number> = { COMUM: 1, INCOMUM: 1.5, RARO: 2, EPICO: 3, LENDARIO: 4.5 };
+export const BASE_ITEM: Record<TipoItem, { forca: number; vida: number; armadura: number; agilidade: number }> = {
+  ARMA: { forca: 3, vida: 0, armadura: 0, agilidade: 2 },
+  CAPACETE: { forca: 1, vida: 4, armadura: 2, agilidade: 0 },
+  ARMADURA: { forca: 1, vida: 6, armadura: 4, agilidade: 0 },
+  BOTAS: { forca: 1, vida: 2, armadura: 1, agilidade: 3 },
 };
+const BASE = BASE_ITEM;
 const NOMES: Record<TipoItem, string[]> = {
   ARMA: ['Cajado de Madeira', 'Caduceu de Bronze', 'Caduceu de Prata', 'Caduceu Dourado'],
   CAPACETE: ['Boné de Corredor', 'Elmo de Bronze', 'Elmo Alado', 'Elmo Dourado de Hermes'],
@@ -87,6 +92,8 @@ const montar = (id: number, nome: string, tipo: TipoItem, raridade: Raridade): I
   raridade,
   bonusForca: Math.round(BASE[tipo].forca * MULTIPLICADOR[raridade]),
   bonusVida: Math.round(BASE[tipo].vida * MULTIPLICADOR[raridade]),
+  bonusArmadura: Math.round(BASE[tipo].armadura * MULTIPLICADOR[raridade]),
+  bonusAgilidade: Math.round(BASE[tipo].agilidade * MULTIPLICADOR[raridade]),
 });
 
 export const CATALOGO: ItemCatalogo[] = [
@@ -131,4 +138,16 @@ export function ofertaDoDia(data: Date = new Date()): ItemCatalogo {
 export function precoItem(item: ItemCatalogo, data: Date = new Date()): number {
   const base = PRECO_RARIDADE[item.raridade];
   return ofertaDoDia(data).id === item.id ? Math.round(base * (1 - DESCONTO_OFERTA)) : base;
+}
+
+/** Texto curto com os 4 atributos do item (só os que existem): "⚔ +3 força  ❤ +6 vida  🛡 +4 armadura  ⚡ +2 agilidade". */
+export function textoAtributos(i: { bonusForca: number; bonusVida: number; bonusArmadura?: number; bonusAgilidade?: number }): string {
+  return [
+    i.bonusForca > 0 && `⚔ +${i.bonusForca} força`,
+    i.bonusVida > 0 && `❤ +${i.bonusVida} vida`,
+    (i.bonusArmadura ?? 0) > 0 && `🛡 +${i.bonusArmadura} armadura`,
+    (i.bonusAgilidade ?? 0) > 0 && `⚡ +${i.bonusAgilidade} agilidade`,
+  ]
+    .filter(Boolean)
+    .join('  ');
 }

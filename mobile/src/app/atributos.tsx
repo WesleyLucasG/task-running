@@ -100,6 +100,7 @@ export default function Atributos() {
           <Linha rotulo="Vida máxima" valor={`${s?.vidaMax ?? 0}`} />
           <Linha rotulo="Golpes por segundo" valor={s ? (1000 / s.intervaloMs).toFixed(2) : '0'} />
           <Linha rotulo="Bônus de itens (força / vida)" valor={`+${ctx?.base.bonusForca ?? 0} / +${ctx?.base.bonusVida ?? 0}`} />
+          <Linha rotulo="Redução de dano (armadura)" valor={`${Math.round((s?.reducaoDano ?? 0) * 100)}%`} />
         </View>
       </ScrollView>
     </View>

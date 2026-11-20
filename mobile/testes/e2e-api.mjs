@@ -7,6 +7,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { dataHoraLocal, pontoParaApi, textoCanonico, umPontoPorSegundo } from '../src/domain/sincronizacao.ts';
 import { progressoXp } from '../src/domain/jogo.ts';
 import { textoProgresso } from '../src/domain/metas.ts';
+import { calcularStatsHeroi, intervaloAtaque, reducaoPorArmadura } from '../src/domain/idle.ts';
 
 const URL = (process.argv[2] ?? 'http://localhost:8080').replace(/\/+$/, '');
 const sha = (t) => createHash('sha256').update(t, 'utf8').digest('hex');
@@ -175,6 +176,25 @@ ok(inv.corpo.length === 1, 'RF25: item aparece no inventário');
 const eq = await chamar(`/api/jogo/inventario/${aberto.corpo.id}/equipar`, { metodo: 'PUT', token: token2 });
 est = await chamar('/api/jogo/estado', { token: token2 });
 ok(eq.status === 204 && est.corpo.atributos.bonusForca === aberto.corpo.bonusForca, 'RF26: equipar soma o bônus do item');
+// D45: os 4 atributos do item chegam ao app e entram no combate pelo contexto que a esteira usa
+const atEq = est.corpo.atributos;
+ok(['bonusArmadura', 'bonusAgilidade'].every((c) => Number.isInteger(aberto.corpo[c])) && aberto.corpo.bonusArmadura + aberto.corpo.bonusAgilidade > 0,
+  `D45: item com 4 atributos (⚔${aberto.corpo.bonusForca} ❤${aberto.corpo.bonusVida} 🛡${aberto.corpo.bonusArmadura} ⚡${aberto.corpo.bonusAgilidade})`);
+ok(atEq.bonusArmadura === aberto.corpo.bonusArmadura && atEq.bonusAgilidade === aberto.corpo.bonusAgilidade
+  && atEq.reducaoDano === reducaoPorArmadura(atEq.bonusArmadura) && atEq.intervaloAtaqueMs === intervaloAtaque(atEq.agilidadeTotal)
+  && atEq.danoPorGolpe === atEq.forcaBase + atEq.bonusForca,
+  `D45: servidor calcula armadura ${Math.round(atEq.reducaoDano * 100)}%, intervalo ${atEq.intervaloAtaqueMs} ms e dano ${atEq.danoPorGolpe} (mesmas fórmulas do app)`);
+const statsEsteira = calcularStatsHeroi({
+  forcaBase: atEq.forcaBase, vidaMaxima: atEq.vidaMaxima - atEq.bonusVida, agilidade: atEq.agilidade,
+  bonusForca: atEq.bonusForca, bonusVida: atEq.bonusVida, bonusArmadura: atEq.bonusArmadura, bonusAgilidade: atEq.bonusAgilidade,
+  pontos: { forca: 0, vitalidade: 0, velocidade: 0 },
+  servidor: { intervaloAtaqueMs: atEq.intervaloAtaqueMs, reducaoDano: atEq.reducaoDano },
+});
+ok(statsEsteira.dano === atEq.danoPorGolpe && statsEsteira.vidaMax === atEq.vidaMaxima, 'D45: esteira usa dano e vida do servidor sem contar nada duas vezes');
+const desEq = await chamar(`/api/jogo/inventario/${aberto.corpo.id}/equipar`, { metodo: 'PUT', token: token2 });
+const semItem = (await chamar('/api/jogo/estado', { token: token2 })).corpo.atributos;
+ok(desEq.status === 204 && semItem.bonusArmadura === 0 && semItem.vidaMaxima === atEq.vidaMaxima - atEq.bonusVida, 'D45: desequipar recalcula vida e armadura');
+await chamar(`/api/jogo/inventario/${aberto.corpo.id}/equipar`, { metodo: 'PUT', token: token2 }); // volta a equipar
 
 // Isolamento: outra conta não vê nem mexe no que é de outra
 const cpfB = cpfAleatorio();
@@ -208,7 +228,7 @@ const at = aposReenvio.atributos;
 const barra = progressoXp({ nivel: at.nivel, experiencia: at.xpNoNivel, xpParaProximoNivel: at.xpParaProximoNivel });
 ok(at.nivel <= 10 && (barra.maximo || (barra.atual < barra.necessario && barra.necessario === 50 * at.nivel + 50)),
   `RF19: nível ${at.nivel}, barra ${barra.maximo ? 'MÁX' : `${barra.atual}/${barra.necessario}`} XP`);
-ok(at.vidaMaxima === 100 + 10 * (at.nivel - 1) + at.bonusVida, 'vida = vida do nível + armadura dos itens (sem contar duas vezes)');
+ok(at.vidaMaxima === 25 + 10 * (at.nivel - 1) + at.bonusVida, `D45: vida ${at.vidaMaxima} = 25 + 10 × (nível − 1) + vida dos itens`);
 
 // Ritmo: rajada artificial de abates (mais rápida que o combate real) é recusada sem pagar
 let pagos = 0;

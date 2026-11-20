@@ -23,12 +23,17 @@ export async function obterContextoIdle(usuarioId: string): Promise<ContextoIdle
     obterEstadoMapa(usuarioId),
   ]);
 
+  // Modo API: tudo vem do servidor (nível, itens e, no servidor novo, intervalo e redução já calculados)
   const base: BaseHeroi = {
     forcaBase: avatar.forcaBase,
     vidaMaxima: avatar.vidaMaxima,
+    agilidade: avatar.agilidade,
     bonusForca: bonus.forca,
     bonusVida: bonus.vida,
+    bonusArmadura: bonus.armadura,
+    bonusAgilidade: bonus.agilidade,
     pontos: { forca: hab.forca, vitalidade: hab.vitalidade, velocidade: hab.velocidade },
+    servidor: bonus.servidor,
   };
   const a = mapa.atual;
   const ultima = mapa.fases[mapa.fases.length - 1].fase;

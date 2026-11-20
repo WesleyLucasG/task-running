@@ -199,3 +199,42 @@ Tela Bloqueio `108:324`, `6:6392`.
 |---|---|
 | Backend `mvnw test` (inclui `RevisaoProducaoIntegracaoTest`) | 38/38 |
 | Mobile `npm test`, `tsc`, `lint` | 24/24, OK |
+
+---
+
+## Balanceamento final do RPG (20/11/2026) — D45, aprovado pela equipe
+
+**Altera o D42** (vida) e a extensão aprovada dos monstros. RN10, RN12, RN15, curva de XP (RF19), XP/moedas por km e regras de chefe/hidratação **não mudaram**.
+
+| Regra | Antes | Agora (D45) |
+|---|---|---|
+| Vida do herói | 100 + 10 × (nível − 1) | **25 + 10 × (nível − 1)**: 25, 35, 45, 55, 65, 75, 85, 95, 105, 115 |
+| Força / agilidade por nível | +2 / +2 | sem alteração (Força 10 + 2(n−1), Agilidade 2(n−1)) |
+| Dano por golpe nos monstros | força base + força dos itens | sem alteração (cada fonte uma vez). Contra o chefe vale a RN12 sem alteração |
+| Armadura (itens) | não existia (o painel mostrava a vida dos itens) | redução = armadura ÷ (armadura + 40), teto 60%; golpe recebido = max(1, golpe × (1 − redução)) |
+| Agilidade (nível + itens) no combate | não usada | intervalo entre ataques = 1000 ms ÷ (1 + agilidade × 0,01), mínimo 700 ms (até 30% mais rápido). A RN10 continua só com a agilidade do nível |
+| Monstros por fase | 7 | **10 / 15 / 20 / 25 / 30** (sempre o monstro da fase, mesmo espaçamento; o chefe não conta) |
+| Vida dos monstros (fase 1–5) | 25 / 40 / 58 / 80 / 105 | 18 / 30 / 45 / 62 / 78 |
+| Dano dos monstros | 4 / 6 / 8 / 11 / 14 | 2 / 3 / 4 / 5 / 5 (antes da armadura) |
+| Dano do chefe na esteira | 7 × 1,5^(f−1) | 3 / 5 / 7 / 9 / 12 (antes da armadura) |
+| Chance de baú por abate | 2 / 3 / 4 / 5 / 6% | **4 / 5 / 6 / 7 / 8%**, raridades da Tabela B sem alteração |
+| Limite de baús de monstro por dia | 2 | 3 (50 abates/dia e ritmo 8/10 s, 32/60 s sem alteração; o motor novo faz no máximo 6/10 s e 30/60 s) |
+| XP / moedas por monstro | 1–5 / 1–3 | sem alteração |
+
+**Itens (4 atributos):** atributos do item Comum × raridade (Comum 1, Incomum 1,5, Raro 2, Épico 3, Lendário 4,5).
+Arma ⚔3 ⚡2 · Capacete ⚔1 ❤4 🛡2 · Armadura ⚔1 ❤6 🛡4 · Botas ⚔1 ❤2 🛡1 ⚡3. Ids e nomes não mudaram. Na inicialização o servidor
+atualiza os atributos dos itens já existentes no lugar (o inventário aponta para o id), sem apagar nem duplicar. Colunas novas
+`bonus_armadura` e `bonus_agilidade` com padrão 0.
+
+**Fonte única:** o servidor calcula vida, dano por golpe, armadura, agilidade total, intervalo e redução (`/api/jogo/estado`);
+a esteira usa esses números. As fórmulas em `domain/idle.ts` servem só de reserva (servidor antigo ou modo local) e para os testes.
+
+**Morte:** a luta para, a volta recomeça do início da mesma fase com vida cheia, barra em 0% e monstros novos (ids novos). XP, nível,
+moedas e itens são mantidos. Cada abate gera um id próprio no servidor (idempotente), então nada da tentativa anterior é pago de novo.
+**Barra da fase:** monstros derrotados ÷ monstros da fase nesta tentativa (não depende do tempo); cheia na etapa do chefe.
+**Subir de nível / equipar no meio da fase:** o ganho de vida máxima entra na vida atual; perder vida máxima nunca deixa a vida acima dela.
+
+**Simulação** (`testes/simular-balanceamento.mjs`, 200 tentativas por perfil/fase, motor real): nível 1 sem itens vence a fase 1
+sempre (sobram 5 de vida) e perde a 2; nível 2 com itens comuns vence a 2; nível 4 com comum/incomum vence a 3; nível 6 com raros
+vence a 4 em 97%; a fase 5 é vencida por nível 10 com incomuns, raros ou épicos e por nível 8–9 com raros, e não é vencida por nível 10 sem itens.
+Baús esperados por fase completa: 0,4 / 0,75 / 1,2 / 1,75 / 2,4 (limitados a 3 por dia).

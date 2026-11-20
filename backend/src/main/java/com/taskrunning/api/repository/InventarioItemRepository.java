@@ -22,4 +22,10 @@ public interface InventarioItemRepository extends JpaRepository<InventarioItem, 
 
     @Query("SELECT COALESCE(SUM(i.item.bonusVida), 0) FROM InventarioItem i WHERE i.usuario.id = :uid AND i.equipado = true")
     int somaBonusVidaEquipado(@Param("uid") Long usuarioId);
+
+    @Query("SELECT COALESCE(SUM(i.item.bonusArmadura), 0) FROM InventarioItem i WHERE i.usuario.id = :uid AND i.equipado = true")
+    int somaBonusArmaduraEquipado(@Param("uid") Long usuarioId);
+
+    @Query("SELECT COALESCE(SUM(i.item.bonusAgilidade), 0) FROM InventarioItem i WHERE i.usuario.id = :uid AND i.equipado = true")
+    int somaBonusAgilidadeEquipado(@Param("uid") Long usuarioId);
 }
