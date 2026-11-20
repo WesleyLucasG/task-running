@@ -194,7 +194,6 @@ public class JogoService {
         EstadoJogoResponseDTO.ChefeAtualDTO chefeDTO = null;
         if (atual != null) {
             String motivo = motivoBloqueio(usuario, atual, bonusForca);
-            FaseCatalogo fase = faseRepo.findById(atual.getFaseNumero()).orElseThrow();
             int danoEst = motivo == null
                     ? RegrasAvatar.calcularDano(RegrasAvatar.forcaBase(nivel), bonusForca, maiorKmUltimas24h(usuario))
                     : 0;

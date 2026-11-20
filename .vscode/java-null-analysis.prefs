@@ -1,0 +1,6 @@
+# Lido pela extensão Java do VS Code (java.settings.url em .vscode/settings.json).
+# A análise de nulidade continua ligada (java.compile.nullAnalysis.mode = automatic).
+# Só a "conversão não verificada" (valor sem anotação de nulidade entrando numa API do Spring marcada
+# @NonNullApi) passa de aviso para informação: continua visível no painel Problems.
+# Acesso a null, possível null e violação de @NonNull/@Nullable NÃO são alterados.
+org.eclipse.jdt.core.compiler.problem.nullUncheckedConversion=info
