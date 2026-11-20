@@ -16,7 +16,9 @@ import {
   listarBaus,
   listarInventario,
   moverItemDeLocal,
+  venderItem,
 } from '../../db/inventario';
+import { multiplicadorAgilidade, progressoXp } from '../../domain/jogo';
 import { COR_RARIDADE, RARIDADES, ROTULO_BAU, ROTULO_RARIDADE, ROTULO_TIPO, TIPOS_ITEM, TipoItem } from '../../domain/loja';
 import { valorDescarte } from '../../domain/recompensas';
 import { apiConfigurada } from '../../services/api';
@@ -53,6 +55,7 @@ export default function Inventario() {
   const [selecionado, setSelecionado] = useState<{ item: ItemInventario; origem: Origem } | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [larguraGrade, setLarguraGrade] = useState(340);
+  const [larguraPalco, setLarguraPalco] = useState(140);
 
   const carregar = useCallback(async () => {
     if (!uid) return;
@@ -88,6 +91,27 @@ export default function Inventario() {
     } finally {
       setOcupado(false);
     }
+  }
+
+  // Venda (modo API): mostra nome, raridade e o valor CALCULADO PELO SERVIDOR antes de confirmar
+  function vender(i: ItemInventario) {
+    const valor = i.valorVenda ?? 0;
+    Alert.alert(
+      'Vender item',
+      `${i.nome}\n${ROTULO_RARIDADE[i.raridade]} · ${ROTULO_TIPO[i.tipo]}\n\nVocê receberá ${valor} moedas. O item sai do inventário e esta ação não pode ser desfeita.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: `Vender (+${valor})`,
+          style: 'destructive',
+          onPress: () =>
+            executar(async () => {
+              const r = await venderItem(i.id);
+              Alert.alert('Item vendido', `+${r.moedas} moedas. Saldo: ${r.saldoMoedas.toLocaleString('pt-BR')}.`);
+            }),
+        },
+      ],
+    );
   }
 
   function descartar(i: ItemInventario) {
@@ -130,15 +154,28 @@ export default function Inventario() {
       <ScrollView contentContainerStyle={estilos.conteudo}>
         {aba === 'INVENTARIO' ? (
           <>
-            {/* Equipamento: silhueta do herói com os 4 slots */}
+            {/* Barra de XP (nível atual e progresso até o próximo; valores do servidor no modo API) */}
+            {avatar && <BarraXpHeroi nivel={avatar.nivel} xp={progressoXp(avatar)} />}
+
+            {/* Herói grande com a aparência salva + 4 slots; atributos em primeiro plano */}
             <View style={estilos.equipamento}>
               <View style={estilos.colunaSlots}>
                 {slotEquipado('CAPACETE')}
                 {slotEquipado('ARMA')}
               </View>
-              <View style={estilos.silhueta}>
+              <View style={estilos.palco} onLayout={(e) => setLarguraPalco(e.nativeEvent.layout.width)}>
+                <View style={estilos.aura} />
+                <View style={estilos.sombraChao} />
                 {avatar && (
-                  <AvatarPixel genero={avatar.genero} cabelo={avatar.cabelo} corPele="#64748B" corRoupa="#475569" tamanho={92} />
+                  <AvatarPixel
+                    genero={avatar.genero}
+                    cabelo={avatar.cabelo}
+                    corPele={avatar.corPele}
+                    corRoupa={avatar.corRoupa}
+                    corCabelo={avatar.corCabelo}
+                    detalheRoupa={avatar.detalheRoupa}
+                    tamanho={Math.min(132, Math.max(84, larguraPalco - 28))}
+                  />
                 )}
               </View>
               <View style={estilos.colunaSlots}>
@@ -146,9 +183,26 @@ export default function Inventario() {
                 {slotEquipado('BOTAS')}
               </View>
             </View>
-            <Text style={estilos.bonus}>
-              ⚔ +{bonus.forca} força   ❤ +{bonus.vida} vida
-            </Text>
+            {avatar && (
+              <View style={estilos.atributos}>
+                <Atributo
+                  icone="flame"
+                  rotulo="FORÇA"
+                  valor={avatar.forcaBase + bonus.forca}
+                  extra={bonus.forca > 0 ? `+${bonus.forca} itens` : 'base'}
+                  cor={cores.laranja}
+                />
+                <Atributo icone="heart" rotulo="VIDA" valor={avatar.vidaMaxima} extra={`nível ${avatar.nivel}`} cor={cores.erro} />
+                <Atributo icone="shield-half" rotulo="ARMADURA" valor={bonus.vida} extra="vida dos itens" cor="#60A5FA" />
+                <Atributo
+                  icone="flash"
+                  rotulo="AGILIDADE"
+                  valor={avatar.agilidade}
+                  extra={`+${Math.round((multiplicadorAgilidade(avatar.agilidade) - 1) * 100)}% corrida`}
+                  cor={cores.douradoClaro}
+                />
+              </View>
+            )}
 
             {baus.length > 0 && (
               <View style={{ gap: espaco.sm }}>
@@ -220,6 +274,9 @@ export default function Inventario() {
                 </View>
               </View>
 
+              {selecionado.origem === 'EQUIPADO' && apiConfigurada() && (
+                <Text style={estilos.detalhe}>Para vender, desequipe o item primeiro.</Text>
+              )}
               {selecionado.origem === 'EQUIPADO' && (
                 <Botao
                   titulo="DESEQUIPAR"
@@ -235,6 +292,14 @@ export default function Inventario() {
                     carregando={ocupado}
                     onPress={() => executar(() => alternarEquipado(uid, selecionado.item.id))}
                   />
+                  {apiConfigurada() && selecionado.item.valorVenda != null && (
+                    <Botao
+                      titulo={`VENDER +${selecionado.item.valorVenda} MOEDAS`}
+                      variante="contorno"
+                      carregando={ocupado}
+                      onPress={() => vender(selecionado.item)}
+                    />
+                  )}
                   {!apiConfigurada() && (
                     <View style={estilos.linhaBotoes}>
                       <Botao
@@ -277,6 +342,50 @@ export default function Inventario() {
         }}
         aoFechar={() => setAbrindo(null)}
       />
+    </View>
+  );
+}
+
+function BarraXpHeroi({ nivel, xp }: { nivel: number; xp: ReturnType<typeof progressoXp> }) {
+  const pct = Math.round(xp.fracao * 100);
+  return (
+    <View style={estilos.xp}>
+      <View style={estilos.linhaXp}>
+        <Text style={estilos.nivelXp}>NÍVEL {nivel}</Text>
+        <Text style={estilos.valorXp}>
+          {xp.maximo
+            ? 'NÍVEL MÁXIMO'
+            : `${xp.atual.toLocaleString('pt-BR')} / ${xp.necessario.toLocaleString('pt-BR')} XP · ${pct}%`}
+        </Text>
+      </View>
+      <View style={estilos.trilhoXp}>
+        <View style={{ width: `${xp.fracao * 100}%`, height: '100%', backgroundColor: cores.douradoClaro }} />
+      </View>
+    </View>
+  );
+}
+
+function Atributo({
+  icone,
+  rotulo,
+  valor,
+  extra,
+  cor,
+}: {
+  icone: keyof typeof Ionicons.glyphMap;
+  rotulo: string;
+  valor: number;
+  extra: string;
+  cor: string;
+}) {
+  return (
+    <View style={estilos.atributo} accessibilityLabel={`${rotulo}: ${valor} (${extra})`}>
+      <Ionicons name={icone} size={16} color={cor} />
+      <Text style={estilos.atributoValor}>{valor}</Text>
+      <Text style={estilos.atributoRotulo}>{rotulo}</Text>
+      <Text style={estilos.atributoExtra} numberOfLines={1}>
+        {extra}
+      </Text>
     </View>
   );
 }
@@ -377,19 +486,62 @@ const estilos = StyleSheet.create({
     borderColor: cores.borda,
   },
   colunaSlots: { gap: espaco.md },
-  silhueta: {
+  // Palco do herói: fundo escuro com aura e sombra no chão; o personagem é o elemento central
+  palco: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     marginHorizontal: espaco.sm,
-    paddingVertical: espaco.sm,
-    backgroundColor: cores.fundo,
+    paddingTop: espaco.md,
+    paddingBottom: espaco.lg + 4,
+    backgroundColor: cores.fundoProfundo,
     borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: cores.bordaClara,
+    borderColor: cores.borda,
     alignSelf: 'stretch',
+    overflow: 'hidden',
   },
-  bonus: { fontFamily: fontes.monoNegrito, color: cores.texto, fontSize: 13, textAlign: 'center', marginTop: -espaco.sm },
+  aura: {
+    position: 'absolute',
+    top: '18%',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: '#F9731614',
+    borderWidth: 1,
+    borderColor: '#F9731626',
+  },
+  sombraChao: {
+    position: 'absolute',
+    bottom: espaco.lg - 2,
+    width: '70%',
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#0008',
+  },
+  xp: { gap: 6, padding: espaco.sm + 2, backgroundColor: cores.superficie, borderWidth: 2, borderColor: cores.borda },
+  linhaXp: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  nivelXp: { fontFamily: fontes.pixel, color: cores.douradoClaro, fontSize: 11 },
+  valorXp: { fontFamily: fontes.mono, color: cores.texto, fontSize: 11 },
+  trilhoXp: { height: 9, backgroundColor: cores.fundo, borderWidth: 1, borderColor: '#000', overflow: 'hidden' },
+  // Atributos em primeiro plano, sobrepondo a base do palco
+  atributos: {
+    flexDirection: 'row',
+    gap: espaco.xs,
+    marginTop: -espaco.lg - espaco.sm,
+    marginHorizontal: espaco.sm,
+  },
+  atributo: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 1,
+    paddingVertical: espaco.sm,
+    backgroundColor: '#1E293BF2',
+    borderWidth: 2,
+    borderColor: cores.borda,
+  },
+  atributoValor: { fontFamily: fontes.pixel, color: cores.texto, fontSize: 12, marginTop: 2 },
+  atributoRotulo: { fontFamily: fontes.monoNegrito, color: cores.texto, fontSize: 8, letterSpacing: 0.5 },
+  atributoExtra: { fontFamily: fontes.mono, color: cores.textoSuave, fontSize: 8 },
   secao: { fontFamily: fontes.mono, color: cores.textoSuave, fontSize: 11, letterSpacing: 2 },
   bau: {
     alignItems: 'center',

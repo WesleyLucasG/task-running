@@ -5,6 +5,8 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { dataHoraLocal, pontoParaApi, textoCanonico, umPontoPorSegundo } from '../src/domain/sincronizacao.ts';
+import { progressoXp } from '../src/domain/jogo.ts';
+import { textoProgresso } from '../src/domain/metas.ts';
 
 const URL = (process.argv[2] ?? 'http://localhost:8080').replace(/\/+$/, '');
 const sha = (t) => createHash('sha256').update(t, 'utf8').digest('hex');
@@ -167,7 +169,7 @@ ok(baus.corpo.length === 2 && baus.corpo.some((b) => b.tipo === 'OURO'), 'RF22: 
 const aberto = await chamar(`/api/jogo/baus/${baus.corpo[0].id}/abrir`, { metodo: 'POST', token: token2 });
 ok(aberto.status === 200 && aberto.corpo.nome && aberto.corpo.equipado === false, `RF24: baú aberto → ${aberto.corpo.nome} (${aberto.corpo.raridade})`);
 const reaberto = await chamar(`/api/jogo/baus/${baus.corpo[0].id}/abrir`, { metodo: 'POST', token: token2 });
-ok(reaberto.status === 400, 'o mesmo baú não abre duas vezes');
+ok(reaberto.status === 409, 'UC12: o mesmo baú não abre duas vezes (409)');
 const inv = await chamar('/api/jogo/inventario', { token: token2 });
 ok(inv.corpo.length === 1, 'RF25: item aparece no inventário');
 const eq = await chamar(`/api/jogo/inventario/${aberto.corpo.id}/equipar`, { metodo: 'PUT', token: token2 });
@@ -182,5 +184,69 @@ const invB = await chamar('/api/jogo/inventario', { token: tokenB });
 const roubo = await chamar(`/api/jogo/inventario/${aberto.corpo.id}/equipar`, { metodo: 'PUT', token: tokenB });
 const bauAlheio = await chamar(`/api/jogo/baus/${baus.corpo[1].id}/abrir`, { metodo: 'POST', token: tokenB });
 ok(invB.corpo.length === 0 && roubo.status === 400 && bauAlheio.status === 400, 'conta B não acessa inventário nem baús da conta A');
+
+// ─── v1.1: monstros da esteira, nível, metas e venda (mesmo contrato de services/jogoRemoto.ts) ───
+const antesAbate = (await chamar('/api/jogo/estado', { token: token2 })).corpo;
+const idAbate = randomUUID();
+const abate = await chamar('/api/jogo/monstros/abate', {
+  metodo: 'POST',
+  token: token2,
+  corpo: { idAbate, xp: 9999, moedas: 9999 }, // valores forjados: o servidor ignora
+});
+ok(abate.status === 200 && abate.corpo.recompensado, 'monstro derrotado registrado no servidor');
+const fase = abate.corpo.faseNumero;
+ok(abate.corpo.xp === fase && abate.corpo.xp < 10 && abate.corpo.moedas <= 3, `servidor decide a recompensa (fase ${fase}: +${abate.corpo.xp} XP, +${abate.corpo.moedas} moedas)`);
+const depoisAbate = (await chamar('/api/jogo/estado', { token: token2 })).corpo;
+ok(depoisAbate.carteira.moedas === antesAbate.carteira.moedas + abate.corpo.moedas, 'moedas do abate entram na carteira oficial');
+ok(depoisAbate.carteira.experienciaXp === antesAbate.carteira.experienciaXp + abate.corpo.xp, 'XP do abate entra no XP total');
+const reAbate = await chamar('/api/jogo/monstros/abate', { metodo: 'POST', token: token2, corpo: { idAbate } });
+const aposReenvio = (await chamar('/api/jogo/estado', { token: token2 })).corpo;
+ok(reAbate.corpo.repetido && aposReenvio.carteira.moedas === depoisAbate.carteira.moedas, 'reenvio do mesmo abate não paga de novo');
+
+// Nível e barra pela curva aprovada (o app usa o valor do servidor)
+const at = aposReenvio.atributos;
+const barra = progressoXp({ nivel: at.nivel, experiencia: at.xpNoNivel, xpParaProximoNivel: at.xpParaProximoNivel });
+ok(at.nivel <= 10 && (barra.maximo || (barra.atual < barra.necessario && barra.necessario === 50 * at.nivel + 50)),
+  `RF19: nível ${at.nivel}, barra ${barra.maximo ? 'MÁX' : `${barra.atual}/${barra.necessario}`} XP`);
+ok(at.vidaMaxima === 100 + 10 * (at.nivel - 1) + at.bonusVida, 'vida = vida do nível + armadura dos itens (sem contar duas vezes)');
+
+// Ritmo: rajada artificial de abates (mais rápida que o combate real) é recusada sem pagar
+let pagos = 0;
+for (let i = 0; i < 12; i++) {
+  const r = await chamar('/api/jogo/monstros/abate', { metodo: 'POST', token: token2, corpo: { idAbate: randomUUID() } });
+  if (r.corpo.recompensado) pagos++;
+}
+ok(pagos <= 8, `proteção de ritmo: só ${pagos} de 12 abates em rajada foram pagos`);
+
+// Metas: progresso calculado no servidor
+const metas = await chamar('/api/jogo/metas', { token: token2 });
+ok(metas.status === 200 && metas.corpo.diarias.length === 4 && metas.corpo.semanais.length === 6, 'metas: 3 diárias + bônus e 5 semanais + bônus');
+const combate = metas.corpo.diarias.find((m) => m.categoria === 'COMBATE');
+ok(combate.progresso >= 1, `meta de combate conta os abates pagos (${textoProgresso(combate)})`);
+const corrida = metas.corpo.diarias.find((m) => m.categoria === 'CORRIDA');
+ok(corrida.concluida, `meta de corrida concluída pelas corridas sincronizadas (${textoProgresso(corrida)})`);
+ok(metas.corpo.segundosParaRenovarDiarias > 0, 'tempo restante vem do servidor');
+const res = await chamar(`/api/jogo/metas/${corrida.codigo}/resgatar`, { metodo: 'POST', token: token2 });
+const res2 = await chamar(`/api/jogo/metas/${corrida.codigo}/resgatar`, { metodo: 'POST', token: token2 });
+ok(res.status === 200 && res.corpo.moedas === corrida.moedas && res2.status === 409, `resgate da meta (+${corrida.moedas}) só uma vez`);
+const naoFeita = metas.corpo.semanais.find((m) => m.codigo === 'BONUS_SEMANAL');
+ok((await chamar(`/api/jogo/metas/${naoFeita.codigo}/resgatar`, { metodo: 'POST', token: token2 })).status === 400, 'meta não concluída não paga');
+
+// Venda: preço do servidor, item equipado protegido, transação única
+const invV = (await chamar('/api/jogo/inventario', { token: token2 })).corpo;
+const equipadoV = invV.find((i) => i.equipado);
+ok(invV.every((i) => i.valorVenda > 0), 'cada item mostra o valor de venda calculado pelo servidor');
+ok((await chamar(`/api/jogo/inventario/${equipadoV.id}/vender`, { metodo: 'POST', token: token2 })).status === 400, 'item equipado não é vendido');
+await chamar(`/api/jogo/inventario/${equipadoV.id}/equipar`, { metodo: 'PUT', token: token2 });
+const saldoAntes = (await chamar('/api/jogo/estado', { token: token2 })).corpo.carteira.moedas;
+const venda = await chamar(`/api/jogo/inventario/${equipadoV.id}/vender`, { metodo: 'POST', token: token2 });
+const saldoDepois = (await chamar('/api/jogo/estado', { token: token2 })).corpo.carteira.moedas;
+const invDepois = (await chamar('/api/jogo/inventario', { token: token2 })).corpo;
+ok(venda.status === 200 && saldoDepois === saldoAntes + equipadoV.valorVenda && !invDepois.some((i) => i.id === equipadoV.id),
+  `venda: item removido e +${equipadoV.valorVenda} moedas na carteira`);
+const vendaDup = await chamar(`/api/jogo/inventario/${equipadoV.id}/vender`, { metodo: 'POST', token: token2 });
+ok(vendaDup.corpo.repetido && (await chamar('/api/jogo/estado', { token: token2 })).corpo.carteira.moedas === saldoDepois, 'reenvio da venda não paga de novo');
+const vendaAlheia = await chamar(`/api/jogo/inventario/${equipadoV.id}/vender`, { metodo: 'POST', token: tokenB });
+ok(vendaAlheia.status === 400, 'conta B não vende item da conta A');
 
 console.log(`\nE2E OK: ${passos} verificações.`);

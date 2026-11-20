@@ -12,6 +12,11 @@ public interface InventarioItemRepository extends JpaRepository<InventarioItem, 
     List<InventarioItem> findByUsuarioIdOrderByIdAsc(Long usuarioId);
     Optional<InventarioItem> findByIdAndUsuarioId(Long id, Long usuarioId);
 
+    /** Venda: apaga o registro só se for do usuário e NÃO estiver equipado (condição atômica no banco). */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("DELETE FROM InventarioItem i WHERE i.id = :id AND i.usuario.id = :uid AND i.equipado = false")
+    int apagarSeDesequipado(@Param("id") Long id, @Param("uid") Long usuarioId);
+
     @Query("SELECT COALESCE(SUM(i.item.bonusForca), 0) FROM InventarioItem i WHERE i.usuario.id = :uid AND i.equipado = true")
     int somaBonusForcaEquipado(@Param("uid") Long usuarioId);
 

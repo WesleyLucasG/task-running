@@ -4,18 +4,33 @@
 
 export type Sprite = { grade: string[]; paleta: Record<string, string> };
 
+// Javali (fase 1): corpo robusto com lombo alto, crina eriçada, orelha pontuda, focinho largo com
+// narina e presas brancas; pernas curtas com cascos. Cabeça à esquerda (olha para o herói).
 const javali: Sprite = {
-  paleta: { H: '#3B2314', B: '#7A4A21', D: '#4A2E15', P: '#C08A5A', E: '#111111', T: '#F5F0DC' },
+  paleta: {
+    H: '#2A170B', // crina
+    B: '#7A4A21', // corpo
+    L: '#A86F3A', // luz no lombo
+    D: '#4A2E15', // sombra e pernas
+    P: '#E0A47A', // focinho
+    N: '#3B1F10', // narina
+    E: '#111111', // olho
+    T: '#FFF8E1', // presas
+    O: '#5A3518', // orelha
+    R: '#B9775C', // dentro da orelha
+    K: '#1B0F07', // cascos
+  },
   grade: [
-    '....HHHHH...',
-    '...HBBBBBH..',
-    '.PBBBBBBBBB.',
-    'PPEBBBBBBBBD',
-    'TPBBBBBBBBBD',
-    'T.BBBBBBBBBD',
-    '..BBDBBBDBBD',
-    '..D.D...D.D.',
-    '..D.D...D.D.',
+    '.....HH.H...',
+    '..O.HHHHHHH.',
+    '.ORHBLLLLLBH',
+    '.BBBBBBBBBBD',
+    'BEBBBBBBBBBD',
+    'PPPBBBBBBBBD',
+    'PNPTBBBBBBDD',
+    '.T.DBDDDDDD.',
+    '...DD...DD..',
+    '...KK...KK..',
   ],
 };
 
@@ -237,3 +252,18 @@ export function emCinza(hex: string): string {
   const v = Math.round(l * 0.6 + 30);
   return `#${((1 << 24) | (v << 16) | (v << 8) | v).toString(16).slice(1)}`;
 }
+
+// ─── Ataque com espada (3 quadros) ─────────────────────────────────────────
+// Só lê o instante do último golpe registrado pelo motor (estado.ultimoGolpe): a animação não
+// interfere no dano nem no tempo da luta. 0 = descanso; 1 = erguer; 2 = golpe; 3 = acompanhamento.
+export const DURACAO_QUADRO_ESPADA = 90;
+export type QuadroEspada = 0 | 1 | 2 | 3;
+
+export function quadroEspada(tempo: number, ultimoGolpe: number): QuadroEspada {
+  const dt = tempo - ultimoGolpe;
+  if (dt < 0 || dt >= DURACAO_QUADRO_ESPADA * 3) return 0;
+  return (Math.floor(dt / DURACAO_QUADRO_ESPADA) + 1) as QuadroEspada;
+}
+
+/** Ângulo (graus) da espada em cada quadro; o braço gira junto a partir do ombro. */
+export const ANGULO_ESPADA: Record<QuadroEspada, number> = { 0: 25, 1: -70, 2: 55, 3: 100 };

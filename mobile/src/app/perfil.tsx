@@ -8,7 +8,7 @@ import { Estatistica } from '../components/Estatistica';
 import { Tela } from '../components/Tela';
 import { atualizarAparencia, Avatar, obterJogador } from '../db/jogo';
 import { cabelosDoGenero, CORES_CABELO, CORES_ROUPA, DETALHES_ROUPA, GENEROS, TONS_PELE } from '../domain/avatar';
-import { multiplicadorAgilidade, xpParaProximoNivel } from '../domain/jogo';
+import { multiplicadorAgilidade, progressoXp } from '../domain/jogo';
 import { useAuth } from '../state/AuthContext';
 import { cores, espaco, fontes, raio } from '../theme';
 
@@ -103,7 +103,7 @@ export default function Perfil() {
   }
 
   const a = jogador.avatar;
-  const necessario = xpParaProximoNivel(a.nivel);
+  const xp = progressoXp(a);
   const bonus = (multiplicadorAgilidade(a.agilidade) - 1) * 100;
 
   return (
@@ -123,10 +123,8 @@ export default function Perfil() {
         <Text style={estilos.nome}>{usuario?.nome}</Text>
         <Text style={estilos.nivel}>NÍVEL {a.nivel}</Text>
         <View style={{ alignSelf: 'stretch', gap: espaco.xs }}>
-          <BarraProgresso progresso={a.experiencia / necessario} />
-          <Text style={estilos.texto}>
-            {a.experiencia} / {necessario} XP
-          </Text>
+          <BarraProgresso progresso={xp.fracao} />
+          <Text style={estilos.texto}>{xp.maximo ? 'NÍVEL MÁXIMO' : `${xp.atual} / ${xp.necessario} XP`}</Text>
         </View>
         <Text style={estilos.moedas}>{jogador.moedas} MOEDAS</Text>
       </View>

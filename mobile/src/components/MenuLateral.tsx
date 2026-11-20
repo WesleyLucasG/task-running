@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 import { Href, router } from 'expo-router';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { xpParaProximoNivel } from '../domain/jogo';
+import { progressoXp } from '../domain/jogo';
 import { useAuth } from '../state/AuthContext';
 import { useJogador } from '../state/useJogador';
 import { EXTRAS_FORA_DO_MVP } from '../config/escopo';
@@ -27,6 +27,7 @@ const ITENS: Item[] = [
   { rotulo: 'Árvore de Atributos', icone: 'shield-outline', destino: '/atributos', bloqueado: !EXTRAS_FORA_DO_MVP },
   { rotulo: 'Loja de Itens', icone: 'bag-handle-outline', destino: '/loja', bloqueado: !EXTRAS_FORA_DO_MVP },
   { rotulo: 'Mapa do Mundo', icone: 'map-outline', destino: '/mapa' },
+  { rotulo: 'Metas', icone: 'flag-outline', destino: '/metas' },
   { rotulo: 'Conquistas', icone: 'trophy-outline', bloqueado: true },
   { rotulo: 'Notificações', icone: 'notifications-outline', destino: '/hidratacao' },
 ];
@@ -43,7 +44,7 @@ export function MenuLateral({ visivel, aoFechar }: { visivel: boolean; aoFechar:
   const emBreve = (nome: string) =>
     Alert.alert(nome, 'Disponível em uma versão futura do Task Running (fora do escopo do MVP).');
 
-  const progressoXp = avatar ? avatar.experiencia / xpParaProximoNivel(avatar.nivel) : 0;
+  const fracaoXp = avatar ? progressoXp(avatar).fracao : 0;
 
   return (
     <Modal visible={visivel} animationType="slide" onRequestClose={aoFechar} statusBarTranslucent>
@@ -80,7 +81,7 @@ export function MenuLateral({ visivel, aoFechar }: { visivel: boolean; aoFechar:
                 <View style={estilos.linhaNivel}>
                   <Text style={estilos.selo}>LVL {avatar?.nivel ?? 1}</Text>
                   <View style={{ flex: 1 }}>
-                    <BarraProgresso progresso={progressoXp} />
+                    <BarraProgresso progresso={fracaoXp} />
                   </View>
                 </View>
               </View>

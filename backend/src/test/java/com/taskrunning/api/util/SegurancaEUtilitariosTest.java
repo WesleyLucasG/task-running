@@ -48,11 +48,14 @@ class SegurancaEUtilitariosTest {
     }
 
     @Test
-    @DisplayName("RF19: curva de nível 200 x nível (igual ao app)")
+    @DisplayName("RF19: curva aprovada 100, 150 … 500 XP por nível, teto no nível 10")
     void curvaDeNivel() {
         assertEquals(1, GamificacaoService.calcularNivel(0));
-        assertEquals(1, GamificacaoService.calcularNivel(199));
-        assertEquals(2, GamificacaoService.calcularNivel(200));
-        assertEquals(3, GamificacaoService.calcularNivel(600)); // 200 + 400
+        assertEquals(1, GamificacaoService.calcularNivel(99));
+        assertEquals(2, GamificacaoService.calcularNivel(100));
+        assertEquals(3, GamificacaoService.calcularNivel(250)); // 100 + 150
+        assertEquals(9, GamificacaoService.calcularNivel(2699));
+        assertEquals(10, GamificacaoService.calcularNivel(2700));
+        assertEquals(10, GamificacaoService.calcularNivel(1_000_000)); // nunca passa do 10
     }
 }

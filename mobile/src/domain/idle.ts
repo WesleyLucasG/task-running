@@ -46,12 +46,15 @@ export function pontosGanhos(distanciaTotalMetros: number): number {
   return Math.floor((Math.max(0, distanciaTotalMetros) / 1000) * PONTOS_POR_KM);
 }
 
+// Tabela A aprovada (vida e dano dos monstros comuns por fase). Simulação com este motor:
+// fase 1 vencível no nível 1, fase 2 no 2, fase 3 no 4, fase 4 no 7 (ou 5 com itens comuns),
+// fase 5 no 10 (ou 8 com itens raros).
+export const VIDA_MONSTRO = [25, 40, 58, 80, 105];
+export const DANO_MONSTRO = [4, 6, 8, 11, 14];
+
 export function statsMonstro(fase: number) {
-  return {
-    vidaMax: Math.round(25 * Math.pow(1.6, fase - 1)),
-    dano: Math.round(4 * Math.pow(1.5, fase - 1)),
-    intervaloMs: 1200,
-  };
+  const i = Math.min(VIDA_MONSTRO.length - 1, Math.max(0, Math.floor(fase) - 1));
+  return { vidaMax: VIDA_MONSTRO[i], dano: DANO_MONSTRO[i], intervaloMs: 1200 };
 }
 
 export function statsChefe(fase: number) {

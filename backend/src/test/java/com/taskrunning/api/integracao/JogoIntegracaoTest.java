@@ -161,7 +161,7 @@ class JogoIntegracaoTest {
         long bauId = baus.get(0).get("id").asLong();
         JsonNode item = enviar("/api/jogo/baus/" + bauId + "/abrir", "", a, 200);
         assertFalse(item.get("equipado").asBoolean());
-        enviar("/api/jogo/baus/" + bauId + "/abrir", "", a, 400);
+        enviar("/api/jogo/baus/" + bauId + "/abrir", "", a, 409); // UC12: já aberto
         assertEquals(1, buscar("/api/jogo/inventario", a, 200).size()); // RF25
 
         // RF26: equipar soma o bônus no estado; desequipar remove

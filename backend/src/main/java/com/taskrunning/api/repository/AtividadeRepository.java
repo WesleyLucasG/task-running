@@ -26,4 +26,11 @@ public interface AtividadeRepository extends JpaRepository<Atividade, Long> {
             Usuario usuario,
             com.taskrunning.api.enums.StatusAtividade status,
             LocalDateTime dataFim);
+
+    /** Metas: atividades de um status com dataFim no intervalo [inicio, fim). */
+    List<Atividade> findByUsuarioIdAndStatusAndDataFimGreaterThanEqualAndDataFimLessThan(
+            Long usuarioId,
+            com.taskrunning.api.enums.StatusAtividade status,
+            LocalDateTime inicio,
+            LocalDateTime fim);
 }

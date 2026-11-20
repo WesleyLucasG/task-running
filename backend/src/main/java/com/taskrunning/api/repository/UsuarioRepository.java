@@ -11,6 +11,13 @@ import java.util.Optional;
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
     Optional<Usuario> findByCpfAndAtivoTrue(String cpf);
+
+    /**
+     * RNF26: trava a linha do usuário (SELECT … FOR UPDATE) até o fim da transação. Serializa as
+     * operações de economia de uma mesma conta, inclusive quando a carteira ainda não existe.
+     */
+    @Query(value = "SELECT id FROM usuarios WHERE id = :id FOR UPDATE", nativeQuery = true)
+    Long travarLinha(@Param("id") Long id);
     Optional<Usuario> findByCpfHashAndAtivoTrue(String cpfHash);
     Optional<Usuario> findByCpfHashAndAtivoFalse(String cpfHash);
     Optional<Usuario> findByIdAndAtivoTrue(Long id);

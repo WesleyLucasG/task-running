@@ -11,6 +11,8 @@ import { abrirBau } from '../../db/inventario';
 import { ROTULO_BAU } from '../../domain/loja';
 import { avisarJogadorAlterado } from '../../state/sinais';
 import { EXTRAS_FORA_DO_MVP } from '../../config/escopo';
+import { PreviaMissoes } from '../../components/PreviaMissoes';
+import { progressoXp } from '../../domain/jogo';
 import { BauEncontrado, useEsteira } from '../../state/useEsteira';
 import { hermesFalar } from '../../state/hermes';
 import { useJogador } from '../../state/useJogador';
@@ -44,6 +46,9 @@ export default function Home() {
     <View style={estilos.raiz}>
       <CabecalhoJogo titulo="COMBATE ATIVO" />
       <ScrollView contentContainerStyle={estilos.conteudo}>
+        {/* Nível e XP acima da arena (referência aprovada); valores do servidor no modo API */}
+        {avatar && <FaixaXp nivel={avatar.nivel} xp={progressoXp(avatar)} />}
+
         {pronto ? (
           <Esteira
             estado={estado!}
@@ -51,6 +56,7 @@ export default function Home() {
             avatar={avatar!}
             vidaMaxHeroi={heroi!.vidaMax}
             efeitos={efeitos}
+            bausRecentes={bausEncontrados}
           />
         ) : info && !info.fase ? (
           <View style={estilos.fim}>
@@ -115,6 +121,8 @@ export default function Home() {
           </Text>
         </View>
 
+        <PreviaMissoes />
+
         <View style={estilos.historico}>
           <View style={estilos.linhaHistorico}>
             <Ionicons name="information-circle-outline" size={14} color={cores.textoSuave} />
@@ -169,6 +177,21 @@ export default function Home() {
       />
       {/* Bônus lendário do chefe (10%) */}
       <RevelacaoItem visivel={!!lendario} itemPronto={lendario} aoFechar={fecharLendario} />
+    </View>
+  );
+}
+
+function FaixaXp({ nivel, xp }: { nivel: number; xp: ReturnType<typeof progressoXp> }) {
+  return (
+    <View style={estilos.faixaXp} accessibilityLabel={`Nível ${nivel}. ${xp.maximo ? 'Nível máximo' : `${xp.atual} de ${xp.necessario} XP`}`}>
+      <View style={estilos.linhaBarra}>
+        <Ionicons name="star" size={13} color={cores.douradoClaro} />
+        <Text style={estilos.nivelXp}>Nível {nivel}</Text>
+        <Text style={estilos.valorXp}>{xp.maximo ? 'NÍVEL MÁXIMO' : `${xp.atual.toLocaleString('pt-BR')} / ${xp.necessario.toLocaleString('pt-BR')} XP`}</Text>
+      </View>
+      <View style={estilos.trilhoXp}>
+        <View style={{ width: `${xp.fracao * 100}%`, height: '100%', backgroundColor: cores.douradoClaro }} />
+      </View>
     </View>
   );
 }
@@ -233,6 +256,18 @@ function Acao({
 const estilos = StyleSheet.create({
   raiz: { flex: 1, backgroundColor: cores.fundo },
   conteudo: { padding: espaco.md, gap: espaco.md },
+  faixaXp: {
+    gap: 6,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.sm,
+    backgroundColor: cores.superficie,
+    borderWidth: 2,
+    borderColor: cores.borda,
+    marginBottom: -espaco.sm,
+  },
+  nivelXp: { flex: 1, fontFamily: fontes.monoNegrito, color: cores.douradoClaro, fontSize: 12 },
+  valorXp: { fontFamily: fontes.mono, color: cores.texto, fontSize: 11 },
+  trilhoXp: { height: 7, backgroundColor: cores.fundo, borderWidth: 1, borderColor: '#000', overflow: 'hidden' },
   carregando: { height: 246, backgroundColor: cores.superficie, borderWidth: 3, borderColor: cores.borda },
   fim: {
     height: 246,

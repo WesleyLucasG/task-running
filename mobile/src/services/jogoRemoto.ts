@@ -58,6 +58,7 @@ type ItemApi = {
   bonusForca: number;
   bonusVida: number;
   equipado: boolean;
+  valorVenda?: number;
 };
 
 const CHAVE_CACHE = 'tr:cache-estado-jogo';
@@ -86,10 +87,13 @@ export function avatarDoEstado(e: EstadoJogoApi): Avatar {
   return {
     nivel: e.atributos.nivel,
     experiencia: e.atributos.xpNoNivel,
+    xpParaProximoNivel: e.atributos.xpParaProximoNivel,
     forcaBase: e.atributos.forcaBase,
     agilidade: e.atributos.agilidade,
-    vidaAtual: e.atributos.vidaMaxima,
-    vidaMaxima: e.atributos.vidaMaxima,
+    // O servidor devolve a vida JÁ com o bônus dos itens; aqui fica só a vida do nível (como no modo local),
+    // porque a esteira soma o bônus dos itens à parte. Antes o bônus era contado duas vezes.
+    vidaAtual: e.atributos.vidaMaxima - e.atributos.bonusVida,
+    vidaMaxima: e.atributos.vidaMaxima - e.atributos.bonusVida,
     genero: e.aparencia.genero,
     cabelo: e.aparencia.cabelo,
     corPele: e.aparencia.corPele,
@@ -165,6 +169,7 @@ const paraItem = (i: ItemApi): ItemInventario => ({
   bonusVida: i.bonusVida,
   equipado: i.equipado,
   local: 'INVENTARIO',
+  valorVenda: i.valorVenda,
 });
 
 /** UC12: o sorteio é feito no servidor; o app só mostra o item recebido. */
@@ -186,6 +191,89 @@ export async function alternarEquipado(registroId: string): Promise<void> {
 export async function bonusEquipados(): Promise<{ forca: number; vida: number }> {
   const e = await obterEstado();
   return { forca: e.atributos.bonusForca, vida: e.atributos.bonusVida };
+}
+
+// ─── Monstros da esteira (extensão aprovada) ────────────────────────────────
+
+export type ResultadoAbate = {
+  recompensado: boolean;
+  motivo: 'LIMITE_DIARIO' | 'RITMO' | null;
+  repetido: boolean;
+  faseNumero: number;
+  xp: number;
+  moedas: number;
+  bauId: number | null;
+  tipoBau: TipoBau | null;
+  abatesRecompensadosHoje: number;
+  limiteDiario: number;
+  nivel: number;
+  experienciaXp: number;
+  saldoMoedas: number;
+};
+
+/**
+ * O app envia só o identificador do abate; XP, moedas e baú são decididos pelo servidor.
+ * Em falha de rede reenvia o MESMO id (o servidor não paga duas vezes).
+ */
+export async function registrarAbate(idAbate: string, tentativas = 3): Promise<ResultadoAbate> {
+  for (let t = 1; ; t++) {
+    try {
+      return await api<ResultadoAbate>('/api/jogo/monstros/abate', { metodo: 'POST', corpo: { idAbate } });
+    } catch (e) {
+      if (!(e instanceof ErroApi && e.semConexao) || t >= tentativas) throw e;
+      await new Promise((r) => setTimeout(r, 1500 * t));
+    }
+  }
+}
+
+// ─── Metas diárias e semanais ───────────────────────────────────────────────
+
+export type Meta = {
+  codigo: string;
+  periodo: 'DIARIA' | 'SEMANAL';
+  categoria: 'COMBATE' | 'CORRIDA' | 'HIDRATACAO' | 'PROGRESSAO' | 'BONUS';
+  titulo: string;
+  descricao: string;
+  progresso: number;
+  alvo: number;
+  unidade: string;
+  moedas: number;
+  concluida: boolean;
+  resgatada: boolean;
+  bonus: boolean;
+};
+
+export type Metas = {
+  diarias: Meta[];
+  semanais: Meta[];
+  segundosParaRenovarDiarias: number;
+  segundosParaRenovarSemanais: number;
+};
+
+export async function listarMetas(): Promise<Metas> {
+  return api<Metas>('/api/jogo/metas');
+}
+
+export async function resgatarMeta(codigo: string): Promise<{ codigo: string; moedas: number; saldoMoedas: number }> {
+  const r = await api<{ codigo: string; moedas: number; saldoMoedas: number }>(
+    `/api/jogo/metas/${encodeURIComponent(codigo)}/resgatar`,
+    { metodo: 'POST' },
+  );
+  await obterEstado().catch(() => {});
+  return r;
+}
+
+// ─── Venda de itens ─────────────────────────────────────────────────────────
+
+export async function venderItem(
+  registroId: string,
+): Promise<{ nome: string; raridade: Raridade; moedas: number; saldoMoedas: number; repetido: boolean }> {
+  const r = await api<{ nome: string; raridade: Raridade; moedas: number; saldoMoedas: number; repetido: boolean }>(
+    `/api/jogo/inventario/${encodeURIComponent(registroId)}/vender`,
+    { metodo: 'POST' },
+  );
+  await obterEstado().catch(() => {});
+  return r;
 }
 
 // Garantia de tipagem: os ids do catálogo do app são os mesmos do servidor (1–16)

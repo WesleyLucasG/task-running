@@ -3,6 +3,9 @@ package com.taskrunning.api.service;
 import com.taskrunning.api.util.Relogio;
 import com.taskrunning.api.dto.request.AparenciaRequestDTO;
 import com.taskrunning.api.dto.request.AtacarChefeRequestDTO;
+import com.taskrunning.api.exception.ConflictException;
+import com.taskrunning.api.util.Auditoria;
+import com.taskrunning.api.util.RegrasMonstro;
 import com.taskrunning.api.dto.response.*;
 import com.taskrunning.api.entity.*;
 import com.taskrunning.api.enums.Raridade;
@@ -32,6 +35,9 @@ public class JogoService {
     @Autowired private InventarioItemRepository inventarioRepo;
     @Autowired private CarteiraRepository carteiraRepo;
     @Autowired private AtividadeRepository atividadeRepo;
+    @Autowired private AbateMonstroRepository abateRepo;
+    @Autowired private GamificacaoService gamificacaoService;
+    @Autowired private VendaItemRepository vendaRepo;
 
     private final Random rng = new Random();
 
@@ -63,7 +69,6 @@ public class JogoService {
     }
 
     private void inicializarItens() {
-        if (itemRepo.count() > 0) return;
         // Catálogo idêntico ao mobile (domain/loja.ts). IDs 1–16 fixos + 17-20 Incomum.
         record Base(com.taskrunning.api.enums.TipoItem tipo, int forca, int vida) {}
         var bases = List.of(
@@ -96,7 +101,8 @@ public class JogoService {
                     (int) Math.round(bases.get(t).forca() * 1.5),
                     (int) Math.round(bases.get(t).vida() * 1.5)));
         }
-        itemRepo.saveAll(catalogo);
+        // Só insere o que falta (bancos semeados antes dos Incomuns 17–20 recebem os novos); nada é alterado
+        itemRepo.saveAll(catalogo.stream().filter(i -> !itemRepo.existsById(i.getItemId())).toList());
     }
 
     private ItemCatalogo item(int id, String nome, com.taskrunning.api.enums.TipoItem tipo,
@@ -138,7 +144,7 @@ public class JogoService {
             return carteiraRepo.save(nova);
         });
 
-        int nivel = carteira.getNivel();
+        int nivel = nivelAtual(carteira);
         AparenciaAvatar ap = aparenciaRepo.findByUsuarioId(usuario.getId())
                 .orElseGet(() -> criarAparenciaPadrao(usuario));
 
@@ -177,7 +183,7 @@ public class JogoService {
 
         long bausPendentes = bauRepo.countByUsuarioIdAndAbertoFalse(usuario.getId());
 
-        long xpNoNivel = carteira.getExperienciaXp() % RegrasAvatar.xpParaProximoNivel(nivel);
+        long xpNoNivel = RegrasAvatar.xpNoNivel(carteira.getExperienciaXp());
 
         return new EstadoJogoResponseDTO(
                 new EstadoJogoResponseDTO.CarteiraDTO(carteira.getMoedas(), carteira.getExperienciaXp(), nivel),
@@ -258,13 +264,20 @@ public class JogoService {
 
     @Transactional
     public InventarioItemResponseDTO abrirBau(Usuario usuario, Long bauId) {
-        BauPendente bau = bauRepo.findByIdAndUsuarioIdAndAbertoFalse(bauId, usuario.getId())
+        // RN07: só baús da própria conta; o usuário vem do token, nunca do corpo da requisição
+        BauPendente bau = bauRepo.findByIdAndUsuarioId(bauId, usuario.getId())
                 .orElseThrow(() -> new BusinessRuleException("Baú não encontrado ou já aberto."));
+        // UC12: trava atômica no banco; o segundo toque (ou reenvio) recebe 409 e nenhum item
+        if (bauRepo.marcarAberto(bau.getId(), usuario.getId(), Relogio.agora()) == 0) {
+            throw new ConflictException("Este baú já foi aberto.");
+        }
 
         Raridade raridade = sortearRaridade(bau.getTipo());
-        List<ItemCatalogo> opcoes = itemRepo.findAll().stream()
-                .filter(i -> i.getRaridade() == raridade)
-                .toList();
+        List<ItemCatalogo> todos = itemRepo.findAll();
+        List<ItemCatalogo> opcoes = todos.stream().filter(i -> i.getRaridade() == raridade).toList();
+        if (opcoes.isEmpty()) { // proteção: catálogo sem a raridade sorteada → item Comum
+            opcoes = todos.stream().filter(i -> i.getRaridade() == Raridade.COMUM).toList();
+        }
         ItemCatalogo item = opcoes.get(rng.nextInt(opcoes.size()));
 
         InventarioItem registro = new InventarioItem();
@@ -272,9 +285,6 @@ public class JogoService {
         registro.setItem(item);
         registro.setEquipado(false);
         inventarioRepo.save(registro);
-
-        bau.setAberto(true);
-        bauRepo.save(bau);
 
         return toDTO(registro);
     }
@@ -300,6 +310,44 @@ public class JogoService {
         inventarioRepo.save(item);
     }
 
+    // ─── VENDA (/api/jogo/inventario/{id}/vender) ────────────────────────────
+
+    /**
+     * Vende um item da mochila pela raridade real (RegrasVenda). Na MESMA transação: apaga o registro
+     * do inventário, grava a venda e credita a carteira oficial (travada). Item equipado não é vendido;
+     * item de outra conta ou inexistente → 400; reenvio de uma venda já feita devolve o resultado original.
+     */
+    @Transactional
+    public VendaItemResponseDTO venderItem(Usuario usuario, Long registroId) {
+        Carteira carteira = gamificacaoService.carteiraTravada(usuario);
+        var jaVendido = vendaRepo.findByUsuarioIdAndInventarioItemId(usuario.getId(), registroId);
+        if (jaVendido.isPresent()) {
+            VendaItem v = jaVendido.get();
+            return new VendaItemResponseDTO(registroId, v.getNome(), v.getRaridade(), v.getMoedas(), carteira.getMoedas(), true);
+        }
+        InventarioItem reg = inventarioRepo.findByIdAndUsuarioId(registroId, usuario.getId())
+                .orElseThrow(() -> new BusinessRuleException("Item não encontrado no inventário."));
+        if (reg.isEquipado()) {
+            throw new BusinessRuleException("Desequipe o item antes de vendê-lo.");
+        }
+        ItemCatalogo item = reg.getItem();
+        int moedas = com.taskrunning.api.util.RegrasVenda.valor(item.getRaridade());
+        if (inventarioRepo.apagarSeDesequipado(registroId, usuario.getId()) != 1) {
+            throw new ConflictException("O item foi alterado. Atualize o inventário e tente de novo.");
+        }
+        VendaItem v = new VendaItem();
+        v.setUsuario(usuario);
+        v.setInventarioItemId(registroId);
+        v.setItemId(item.getItemId());
+        v.setNome(item.getNome());
+        v.setRaridade(item.getRaridade());
+        v.setMoedas(moedas);
+        vendaRepo.save(v);
+        carteira = gamificacaoService.creditar(usuario, 0, moedas);
+        Auditoria.registrar("VENDA_ITEM", usuario.getEmail(), item.getRaridade() + " +" + moedas);
+        return new VendaItemResponseDTO(registroId, item.getNome(), item.getRaridade(), moedas, carteira.getMoedas(), false);
+    }
+
     // ─── CHEFE (/api/jogo/chefe/atacar) ──────────────────────────────────────
 
     @Transactional
@@ -316,7 +364,7 @@ public class JogoService {
 
         FaseCatalogo fase = faseRepo.findById(prog.getFaseNumero()).orElseThrow();
         int nivel   = carteiraRepo.findByUsuarioId(usuario.getId())
-                .map(Carteira::getNivel).orElse(1);
+                .map(this::nivelAtual).orElse(1);
         int forcaBase = RegrasAvatar.forcaBase(nivel);
         double maiorKm = maiorKmUltimas24h(usuario);
         int limite = RegrasAvatar.calcularDano(forcaBase, bonusForca, maiorKm);
@@ -352,6 +400,91 @@ public class JogoService {
         return new ResultadoAtaqueResponseDTO(dano, vida, fase.getChefeVidaMaxima(), derrotado, proximaFase);
     }
 
+    // ─── MONSTROS DA ESTEIRA (/api/jogo/monstros/abate) ──────────────────────
+
+    /**
+     * Extensão de gameplay aprovada (não é a RN10): o app informa só o UUID do abate; o servidor decide
+     * fase, XP, moedas e baú pela fase ATUAL do jogador, aplica os limites diários e de ritmo e grava
+     * tudo na mesma transação. O mesmo UUID devolve o resultado original sem pagar de novo.
+     */
+    @Transactional
+    public AbateMonstroResponseDTO registrarAbate(Usuario usuario, String idAbate) {
+        garantirProgressoInicial(usuario);
+        // Trava a carteira primeiro: abates simultâneos da mesma conta são processados um de cada vez
+        Carteira carteira = gamificacaoService.carteiraTravada(usuario);
+        String id = idAbate.toLowerCase(java.util.Locale.ROOT);
+
+        var existente = abateRepo.findByUsuarioIdAndIdAbate(usuario.getId(), id);
+        if (existente.isPresent()) return respostaAbate(existente.get(), true, carteira);
+
+        int fase = progressoRepo
+                .findFirstByUsuarioIdAndSituacaoOrderByFaseNumeroAsc(usuario.getId(), SituacaoFase.ATUAL)
+                .map(ProgressoFase::getFaseNumero)
+                .orElse(5); // todas concluídas: a esteira continua na última terra
+        LocalDateTime agora = Relogio.agora();
+        java.time.LocalDate hoje = Relogio.hoje();
+
+        AbateMonstro abate = new AbateMonstro();
+        abate.setUsuario(usuario);
+        abate.setIdAbate(id);
+        abate.setFaseNumero(fase);
+        abate.setDia(hoje);
+        abate.setCriadoEm(agora);
+
+        long uid = usuario.getId();
+        if (abateRepo.countByUsuarioIdAndDiaAndRecompensadoTrue(uid, hoje) >= RegrasMonstro.LIMITE_DIARIO_ABATES) {
+            abate.setMotivo("LIMITE_DIARIO");
+        } else if (abateRepo.countByUsuarioIdAndRecompensadoTrueAndCriadoEmAfter(uid, agora.minusSeconds(10)) >= RegrasMonstro.MAX_ABATES_10S
+                || abateRepo.countByUsuarioIdAndRecompensadoTrueAndCriadoEmAfter(uid, agora.minusSeconds(60)) >= RegrasMonstro.MAX_ABATES_60S) {
+            abate.setMotivo("RITMO"); // mais rápido do que o combate real permite
+            Auditoria.registrar("ABATE_MONSTRO", usuario.getEmail(), "RECUSADO_RITMO");
+        } else {
+            abate.setRecompensado(true);
+            abate.setXp(RegrasMonstro.xpPorAbate(fase));
+            abate.setMoedas(RegrasMonstro.moedasPorAbate(fase));
+            if (abateRepo.countByUsuarioIdAndDiaAndBauIdIsNotNull(uid, hoje) < RegrasMonstro.LIMITE_DIARIO_BAUS) {
+                TipoBau tipo = RegrasMonstro.sortearBau(fase, rng::nextDouble);
+                if (tipo != null) {
+                    abate.setTipoBau(tipo);
+                    abate.setBauId(concederBau(usuario, tipo).getId());
+                }
+            }
+            carteira = gamificacaoService.creditar(usuario, abate.getXp(), abate.getMoedas());
+        }
+        abateRepo.save(abate);
+        return respostaAbate(abate, false, carteira);
+    }
+
+    private AbateMonstroResponseDTO respostaAbate(AbateMonstro a, boolean repetido, Carteira carteira) {
+        long hoje = abateRepo.countByUsuarioIdAndDiaAndRecompensadoTrue(a.getUsuario().getId(), Relogio.hoje());
+        return new AbateMonstroResponseDTO(
+                a.isRecompensado(), a.getMotivo(), repetido, a.getFaseNumero(),
+                a.getXp(), a.getMoedas(), a.getBauId(), a.getTipoBau(),
+                hoje, RegrasMonstro.LIMITE_DIARIO_ABATES,
+                RegrasAvatar.nivelPorXp(carteira.getExperienciaXp()),
+                carteira.getExperienciaXp(), carteira.getMoedas());
+    }
+
+    // ─── HIDRATAÇÃO → BAÚ BRONZE (RN14) ──────────────────────────────────────
+
+    /**
+     * RN14: ao atingir 100% da meta diária, 1 baú BRONZE, no máximo 1 por dia (checado por criadoEm,
+     * no dia de Brasília). Roda na transação do registro de água, com a carteira travada.
+     * @return true se o baú foi concedido agora
+     */
+    @Transactional
+    public boolean concederBauHidratacaoSeDevido(Usuario usuario, int consumidoHojeMl, int metaDiariaMl) {
+        if (metaDiariaMl <= 0 || consumidoHojeMl < metaDiariaMl) return false;
+        gamificacaoService.carteiraTravada(usuario);
+        LocalDateTime inicio = Relogio.hoje().atStartOfDay();
+        if (bauRepo.existsByUsuarioIdAndTipoAndCriadoEmGreaterThanEqualAndCriadoEmLessThan(
+                usuario.getId(), TipoBau.BRONZE, inicio, inicio.plusDays(1))) {
+            return false;
+        }
+        concederBau(usuario, TipoBau.BRONZE);
+        return true;
+    }
+
     // ─── HELPERS ─────────────────────────────────────────────────────────────
 
     private AparenciaAvatar criarAparenciaPadrao(Usuario usuario) {
@@ -360,11 +493,21 @@ public class JogoService {
         return aparenciaRepo.save(ap);
     }
 
-    private void concederBau(Usuario usuario, TipoBau tipo) {
+    private BauPendente concederBau(Usuario usuario, TipoBau tipo) {
         BauPendente bau = new BauPendente();
         bau.setUsuario(usuario);
         bau.setTipo(tipo);
-        bauRepo.save(bau);
+        return bauRepo.save(bau);
+    }
+
+    /** RF19: o nível vem sempre do XP total (curva única); corrige o valor gravado se estiver defasado. */
+    private int nivelAtual(Carteira carteira) {
+        int nivel = RegrasAvatar.nivelPorXp(carteira.getExperienciaXp());
+        if (carteira.getNivel() == null || carteira.getNivel() != nivel) {
+            carteira.setNivel(nivel);
+            carteiraRepo.save(carteira);
+        }
+        return nivel;
     }
 
     /** Maior distância (km) em atividades CONCLUIDAS nas últimas 24h (RN11/RN12). */
@@ -418,6 +561,6 @@ public class JogoService {
                 reg.getId(), reg.getItem().getItemId(), reg.getItem().getNome(),
                 reg.getItem().getTipo(), reg.getItem().getRaridade(),
                 reg.getItem().getBonusForca(), reg.getItem().getBonusVida(),
-                reg.isEquipado());
+                reg.isEquipado(), com.taskrunning.api.util.RegrasVenda.valor(reg.getItem().getRaridade()));
     }
 }

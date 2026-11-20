@@ -9,6 +9,9 @@ import { Estado, Evento, novaVolta, passo } from '../domain/idle';
 import { useAuth } from './AuthContext';
 import { EXTRAS_FORA_DO_MVP } from '../config/escopo';
 import { avisarJogadorAlterado } from './sinais';
+import { apiConfigurada, ErroApi } from '../services/api';
+import { registrarAbate } from '../services/jogoRemoto';
+import { ferramentasReais } from '../db/aleatorio';
 
 const TICK_MS = 100;
 const MAX_LOG = 4;
@@ -33,6 +36,30 @@ export function useEsteira() {
   const [efeitos, setEfeitos] = useState<EfeitoLoot[]>([]);
   const [bausEncontrados, setBausEncontrados] = useState<BauEncontrado[]>([]);
   const [lendario, setLendario] = useState<ItemCatalogo | null>(null);
+  // Modo API: avisos de limite só uma vez por sessão; nível para detectar subida; aviso às telas com intervalo
+  const avisouLimite = useRef(false);
+  const nivelServidor = useRef<number | null>(null);
+  const ultimoAviso = useRef(0);
+  const avisoPendente = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Atualiza cabeçalho, barra de XP e metas no máximo a cada 5 s (um abate a cada ~2 s não vira uma
+  // consulta ao servidor por abate)
+  const avisarComIntervalo = useCallback(() => {
+    const espera = 5000 - (Date.now() - ultimoAviso.current);
+    if (espera <= 0) {
+      ultimoAviso.current = Date.now();
+      avisarJogadorAlterado();
+    } else if (!avisoPendente.current) {
+      avisoPendente.current = setTimeout(() => {
+        avisoPendente.current = null;
+        ultimoAviso.current = Date.now();
+        avisarJogadorAlterado();
+      }, espera);
+    }
+  }, []);
+  useEffect(() => () => {
+    if (avisoPendente.current) clearTimeout(avisoPendente.current);
+  }, []);
 
   const adicionarEfeito = useCallback((e: Omit<EfeitoLoot, 'id' | 'criadoEm'>) => {
     const agora = estadoRef.current?.tempo ?? 0;
@@ -79,10 +106,51 @@ export function useEsteira() {
       const chefe = ctx.fase?.chefe.nome ?? 'O chefe';
       const monstro = ctx.fase?.monstro.nome ?? 'Monstro';
       for (const ev of eventos) {
-        if (ev.tipo === 'MONSTRO_DERROTADO' && !EXTRAS_FORA_DO_MVP) {
+        if (ev.tipo === 'MONSTRO_DERROTADO' && apiConfigurada()) {
+          // Modo API (extensão aprovada): o SERVIDOR decide XP, moedas e baú; o app só mostra o resultado.
+          // Um id por abate: reenvios por falha de rede usam o mesmo id e não pagam duas vezes.
+          registrarAbate(ferramentasReais.novoId())
+            .then((r) => {
+              if (!r.recompensado) {
+                if (r.motivo === 'LIMITE_DIARIO' && !avisouLimite.current) {
+                  avisouLimite.current = true;
+                  registrar('Limite diário de recompensas dos monstros atingido. Corra para ganhar mais!');
+                } else if (r.motivo !== 'LIMITE_DIARIO') {
+                  registrar(`${monstro} derrotado!`);
+                }
+                return;
+              }
+              adicionarEfeito({ tipo: 'MOEDA', pos: ev.pos, valor: r.moedas });
+              if (r.bauId != null && r.tipoBau) {
+                const bau: BauEncontrado = { id: String(r.bauId), tipo: r.tipoBau as RaridadeBauDrop };
+                adicionarEfeito({ tipo: 'BAU', pos: ev.pos, bau: bau.tipo });
+                setBausEncontrados((b) => [...b, bau]);
+                registrar(`${monstro} deixou um baú ${bau.tipo.toLowerCase()}!`);
+              } else {
+                registrar(`${monstro} derrotado! +${r.xp} XP  +${r.moedas} moeda${r.moedas > 1 ? 's' : ''}`);
+              }
+              const subiu = nivelServidor.current != null && r.nivel > nivelServidor.current;
+              nivelServidor.current = r.nivel;
+              if (subiu) {
+                registrar(`NÍVEL ${r.nivel}! Seu herói ficou mais forte.`);
+                avisarJogadorAlterado();
+                recarregar().catch(() => {}); // novos atributos entram na luta
+              } else {
+                avisarComIntervalo();
+              }
+            })
+            .catch((e) =>
+              registrar(
+                e instanceof ErroApi && e.semConexao
+                  ? `${monstro} derrotado! (sem conexão: recompensa não registrada)`
+                  : `${monstro} derrotado! (recompensa indisponível no servidor)`,
+              ),
+            );
+        }
+        if (ev.tipo === 'MONSTRO_DERROTADO' && !apiConfigurada() && !EXTRAS_FORA_DO_MVP) {
           registrar(`${monstro} derrotado!`);
         }
-        if (ev.tipo === 'MONSTRO_DERROTADO' && EXTRAS_FORA_DO_MVP) {
+        if (ev.tipo === 'MONSTRO_DERROTADO' && !apiConfigurada() && EXTRAS_FORA_DO_MVP) {
           // D19: moedas sempre + 20% de chance de baú (sem XP: RF18)
           recompensarMonstroDerrotado(usuario.id, ctx.contexto.fase)
             .then((r) => {
@@ -123,7 +191,7 @@ export function useEsteira() {
         }
       }
     },
-    [usuario, recarregar, registrar, definirEstado, adicionarEfeito],
+    [usuario, recarregar, registrar, definirEstado, adicionarEfeito, avisarComIntervalo],
   );
 
   // Laço da simulação (só com a tela em foco)

@@ -28,8 +28,12 @@ public class BauPendente {
     private TipoBau tipo;
 
     @Column(name = "criado_em", nullable = false)
-    private LocalDateTime criadoEm = LocalDateTime.now();
+    private LocalDateTime criadoEm = com.taskrunning.api.util.Relogio.agora(); // dia de Brasília (RN14)
 
     @Column(nullable = false)
     private boolean aberto = false;
+
+    /** Quando foi aberto (horário de Brasília); nulo nos baús abertos antes desta coluna existir. */
+    @Column(name = "aberto_em")
+    private LocalDateTime abertoEm;
 }

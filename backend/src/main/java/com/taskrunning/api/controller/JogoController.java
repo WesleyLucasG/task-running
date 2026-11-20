@@ -1,5 +1,8 @@
 package com.taskrunning.api.controller;
 
+import com.taskrunning.api.dto.request.AbateMonstroRequestDTO;
+import com.taskrunning.api.dto.response.AbateMonstroResponseDTO;
+
 import com.taskrunning.api.dto.request.AparenciaRequestDTO;
 import com.taskrunning.api.dto.request.AtacarChefeRequestDTO;
 import com.taskrunning.api.dto.response.*;
@@ -63,6 +66,25 @@ public class JogoController {
             @PathVariable Long id) {
         jogoService.alternarEquipado(usuario, id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Monstro comum derrotado na esteira (extensão de gameplay). O app envia só o UUID do abate;
+     * o servidor decide XP, moedas e baú e aplica os limites diários e de ritmo.
+     */
+    @PostMapping("/monstros/abate")
+    public ResponseEntity<AbateMonstroResponseDTO> registrarAbate(
+            @AuthenticationPrincipal Usuario usuario,
+            @RequestBody @Valid AbateMonstroRequestDTO dto) {
+        return ResponseEntity.ok(jogoService.registrarAbate(usuario, dto.idAbate()));
+    }
+
+    /** Vende um item da mochila; o servidor decide o valor pela raridade real. */
+    @PostMapping("/inventario/{id}/vender")
+    public ResponseEntity<VendaItemResponseDTO> venderItem(
+            @AuthenticationPrincipal Usuario usuario,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(jogoService.venderItem(usuario, id));
     }
 
     /** Ataca o chefe da fase atual com o dano informado pelo app (limitado pela RN12). */

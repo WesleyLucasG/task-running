@@ -4,22 +4,30 @@ import type { Avatar } from '../../db/jogo';
 import type { FaseCatalogo } from '../../domain/fases';
 import { Estado, Inimigo, progressoDaVolta } from '../../domain/idle';
 import { cores, espaco, fontes } from '../../theme';
-import type { EfeitoLoot } from '../../state/useEsteira';
+import type { BauEncontrado, EfeitoLoot } from '../../state/useEsteira';
+import { COR_BAU, ROTULO_BAU } from '../../domain/loja';
 import { AvatarPixel } from '../AvatarPixel';
 import { SpritePixel } from '../SpritePixel';
-import { Sprite, SPRITES_FASE } from '../../domain/sprites';
+import { ANGULO_ESPADA, quadroEspada, Sprite, SPRITES_FASE } from '../../domain/sprites';
 import { BauPixel } from '../BauPixel';
 
 const JANELA = 30; // unidades do mundo visíveis na tela
 const ALTURA = 210;
 const CHAO = 44; // altura da faixa de chão
 
-type Props = { estado: Estado; fase: FaseCatalogo; avatar: Avatar; vidaMaxHeroi: number; efeitos?: EfeitoLoot[] };
+type Props = {
+  estado: Estado;
+  fase: FaseCatalogo;
+  avatar: Avatar;
+  vidaMaxHeroi: number;
+  efeitos?: EfeitoLoot[];
+  bausRecentes?: BauEncontrado[]; // selos dos baús deixados por monstros (canto direito)
+};
 
 // Cena da esteira idle (Figma "Combate", quadro superior): cenário com rolagem lateral,
 // herói à esquerda, monstros chegando pela direita, vida sobre as cabeças,
 // números de dano e a barra "Progresso da fase" embaixo.
-export function Esteira({ estado, fase, avatar, vidaMaxHeroi, efeitos = [] }: Props) {
+export function Esteira({ estado, fase, avatar, vidaMaxHeroi, efeitos = [], bausRecentes = [] }: Props) {
   const [largura, setLargura] = useState(320);
   const ppu = largura / JANELA;
   const heroiX = largura * 0.22;
@@ -94,6 +102,9 @@ export function Esteira({ estado, fase, avatar, vidaMaxHeroi, efeitos = [] }: Pr
               detalheRoupa={avatar.detalheRoupa}
               tamanho={34}
             />
+            {estado.modo !== 'MORTO' && (
+              <Espada quadro={quadroEspada(estado.tempo, estado.ultimoGolpe)} corPele={avatar.corPele} />
+            )}
           </View>
         </View>
 
@@ -152,6 +163,20 @@ export function Esteira({ estado, fase, avatar, vidaMaxHeroi, efeitos = [] }: Pr
         <Text style={estilos.selo}>FASE {fase.numero}</Text>
         <Aviso estado={estado} />
 
+        {/* Baús deixados pelos monstros nesta sessão (até 3, o mais recente em cima) */}
+        {bausRecentes.length > 0 && (
+          <View style={estilos.selosBau} pointerEvents="none">
+            {bausRecentes.slice(-3).reverse().map((b) => (
+              <View key={b.id} style={[estilos.seloBau, { borderColor: COR_BAU[b.tipo] }]}>
+                <BauPixel tipo={b.tipo} tamanho={16} />
+                <Text style={[estilos.seloBauTexto, { color: COR_BAU[b.tipo] }]}>
+                  {ROTULO_BAU[b.tipo].replace('Baú ', '').toUpperCase()}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* Progresso da fase (Figma) */}
         <View style={estilos.progresso}>
           <View style={estilos.linhaProgresso}>
@@ -193,6 +218,22 @@ function Monstro({
       <View style={{ opacity: atingido ? 0.55 : 1 }}>
         <SpritePixel sprite={sprite} tamanho={tamanho} />
       </View>
+    </View>
+  );
+}
+
+// Espada em pixel art na mão do herói. O conjunto braço + espada gira a partir do ombro;
+// 3 quadros de ataque (erguer, golpe, acompanhamento) e a pose de descanso.
+function Espada({ quadro, corPele }: { quadro: 0 | 1 | 2 | 3; corPele: string }) {
+  return (
+    <View
+      pointerEvents="none"
+      style={[estilos.espada, { transform: [{ rotate: `${ANGULO_ESPADA[quadro]}deg` }] }]}>
+      <View style={[estilos.braco, { backgroundColor: corPele }]} />
+      <View style={estilos.cabo} />
+      <View style={estilos.guarda} />
+      <View style={estilos.lamina} />
+      <View style={estilos.ponta} />
     </View>
   );
 }
@@ -275,6 +316,33 @@ const estilos = StyleSheet.create({
   },
   moedaTexto: { fontFamily: fontes.pixel, fontSize: 9, color: cores.douradoClaro },
   bauQueda: { position: 'absolute' },
+  // Braço + espada: caixa de 6 x 30 px cujo pé fica no ombro do herói (gira em torno dele)
+  espada: {
+    position: 'absolute',
+    left: 24, // ombro do herói (grade 12 x 18 com 34 px de largura)
+    top: -10,
+    width: 6,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    transformOrigin: 'bottom',
+  },
+  braco: { position: 'absolute', bottom: 0, width: 4, height: 8, borderWidth: 0.5, borderColor: '#0006' },
+  cabo: { position: 'absolute', bottom: 7, width: 3, height: 4, backgroundColor: '#78350F' },
+  guarda: { position: 'absolute', bottom: 11, width: 9, height: 2, backgroundColor: cores.dourado },
+  lamina: { position: 'absolute', bottom: 13, width: 3, height: 15, backgroundColor: '#E2E8F0', borderRightWidth: 1, borderRightColor: '#94A3B8' },
+  ponta: { position: 'absolute', bottom: 28, width: 1.5, height: 2, backgroundColor: '#E2E8F0' },
+  selosBau: { position: 'absolute', top: 26, right: 8, gap: 4, alignItems: 'flex-end' },
+  seloBau: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    backgroundColor: '#0F172ADD',
+    borderWidth: 1,
+  },
+  seloBauTexto: { fontFamily: fontes.monoNegrito, fontSize: 8 },
   aviso: { position: 'absolute', top: 60, left: 0, right: 0, alignItems: 'center' },
   avisoTexto: {
     fontFamily: fontes.pixel,

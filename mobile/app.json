@@ -2,9 +2,9 @@
   "expo": {
     "name": "Task Running",
     "slug": "task-running",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icone-tr.png",
     "scheme": "taskrunning",
     "userInterfaceStyle": "dark",
     "ios": {
@@ -13,12 +13,12 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0F172A",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/icone-tr-foreground.png",
+        "monochromeImage": "./assets/images/icone-tr-monocromatico.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "br.uniube.taskrunning",
+      "versionCode": 2,
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",

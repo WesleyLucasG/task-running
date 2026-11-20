@@ -12,9 +12,22 @@ export type EstadoAvatar = {
   vidaMaxima: number;
 };
 
-// Decisão de projeto: o documento não define a curva de níveis
+// RF19 — curva aprovada (igual ao servidor, RegrasAvatar): 100, 150 … 500 XP por nível, máximo 10
+export const NIVEL_MAXIMO = 10;
 export function xpParaProximoNivel(nivel: number): number {
-  return 200 * nivel;
+  return nivel >= NIVEL_MAXIMO ? 0 : 50 * Math.max(1, nivel) + 50;
+}
+
+/** Progresso da barra de XP (0–1). No modo API usa o valor do servidor; no nível máximo a barra fica cheia. */
+export function progressoXp(a: { nivel: number; experiencia: number; xpParaProximoNivel?: number }): {
+  atual: number;
+  necessario: number;
+  fracao: number;
+  maximo: boolean;
+} {
+  const necessario = a.xpParaProximoNivel ?? xpParaProximoNivel(a.nivel);
+  if (a.nivel >= NIVEL_MAXIMO || necessario <= 0) return { atual: 0, necessario: 0, fracao: 1, maximo: true };
+  return { atual: a.experiencia, necessario, fracao: Math.max(0, Math.min(1, a.experiencia / necessario)), maximo: false };
 }
 
 // RN10: utilidade funcional do atributo agilidade
@@ -36,7 +49,7 @@ export function calcularRecompensa(distanciaMetros: number, agilidade: number) {
 export function aplicarXp<T extends EstadoAvatar>(avatar: T, xp: number): T {
   let { nivel, experiencia, forcaBase, agilidade, vidaMaxima, vidaAtual } = avatar;
   experiencia += xp;
-  while (experiencia >= xpParaProximoNivel(nivel)) {
+  while (nivel < NIVEL_MAXIMO && experiencia >= xpParaProximoNivel(nivel)) {
     experiencia -= xpParaProximoNivel(nivel);
     nivel += 1;
     forcaBase += 2;

@@ -20,6 +20,8 @@ export type Avatar = {
   corRoupa: string;
   corCabelo: string;
   detalheRoupa: DetalheRoupa;
+  /** Modo API: XP necessário para o próximo nível, vindo do servidor (0 no nível máximo). */
+  xpParaProximoNivel?: number;
 };
 
 export type LinhaAvatar = {

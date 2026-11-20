@@ -24,6 +24,7 @@ public class HidratacaoService {
     public static final java.util.Set<Integer> INTERVALOS_PERMITIDOS = java.util.Set.of(30, 60, 120, 180, 240);
 
     private final GamificacaoService gamificacaoService;
+    private final JogoService jogoService;
 
     /** RF30: histórico agrupado por data (últimos N dias). */
     @Transactional
@@ -60,6 +61,7 @@ public class HidratacaoService {
 
         ConfiguracaoHidratacao config = buscarConfiguracaoDoUsuario(usuario);
         int consumidoHoje = obterConsumoDoDia(usuario.getId());
+        jogoService.concederBauHidratacaoSeDevido(usuario, consumidoHoje, config.getMetaDiariaMl()); // RN14
 
         return mapearParaResponseDTO(config, consumidoHoje);
     }

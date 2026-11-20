@@ -19,6 +19,7 @@ export type ItemInventario = {
   bonusVida: number;
   equipado: boolean;
   local: LocalItem; // INVENTARIO ou BAU (baú de armazenamento)
+  valorVenda?: number; // modo API: moedas da venda, calculadas pelo servidor
 };
 
 export async function listarBaus(usuarioId: string): Promise<Bau[]> {
@@ -158,4 +159,10 @@ export async function moverItemDeLocal(usuarioId: string, registroId: string, de
 export async function descartarItemDaMochila(usuarioId: string, registroId: string) {
   const db = await getDbLoja();
   return descartarItem(db, usuarioId, registroId);
+}
+
+// Venda (modo API): o servidor decide o valor pela raridade real e faz tudo numa transação
+export async function venderItem(registroId: string) {
+  if (!apiConfigurada()) throw new Error('A venda de itens precisa de conexão com o servidor.');
+  return Remoto.venderItem(registroId);
 }
