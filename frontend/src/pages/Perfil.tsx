@@ -51,15 +51,12 @@ export default function PerfilPage() {
   const [perfil, setPerfil] = useState<PerfilData | null>(null);
   const [hidratacao, setHidratacao] = useState<Hidratacao | null>(null);
   const [carteira, setCarteira] = useState<Carteira | null>(null);
-  const [avatarEquipado, setAvatarEquipado] = useState<Avatar | null>(null);
   const [loadingPerfil, setLoadingPerfil] = useState(true);
   const [loadingHidratacao, setLoadingHidratacao] = useState(true);
-  const [loadingCarteira, setLoadingCarteira] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [nome, setNome] = useState('');
   const [peso, setPeso] = useState('');
   const [savingPerfil, setSavingPerfil] = useState(false);
-  const [avatarEquipado] = useState<null>(null);
   const [togglingLembrete, setTogglingLembrete] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
