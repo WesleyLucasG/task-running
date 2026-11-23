@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, FormEvent } from 'react';
 import { toast } from 'sonner';
 import {
   Save, Pencil, X, Bell, BellOff, Trash2, Loader2, AlertTriangle, Info,
-  Droplets, Coins, Star, Zap, Shield, Package,
+  Droplets, Coins, Star, Zap, Shield,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -30,8 +30,6 @@ interface Carteira {
   nivel: number;
 }
 
-interface Avatar { id: number; nome: string; imagemUrl: string; equipado: boolean; adquirido: boolean; }
-
 function getTitle(nivel: number): string {
   if (nivel >= 20) return 'LENDÁRIO';
   if (nivel >= 10) return 'CORREDOR DAS SOMBRAS';
@@ -56,11 +54,12 @@ export default function PerfilPage() {
   const [avatarEquipado, setAvatarEquipado] = useState<Avatar | null>(null);
   const [loadingPerfil, setLoadingPerfil] = useState(true);
   const [loadingHidratacao, setLoadingHidratacao] = useState(true);
-  const [loadingCarteira, setLoadingCarteira] = useState(true);
+  const [loadingCarteira, setLoadingCarteira] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [nome, setNome] = useState('');
   const [peso, setPeso] = useState('');
   const [savingPerfil, setSavingPerfil] = useState(false);
+  const [avatarEquipado] = useState<null>(null);
   const [togglingLembrete, setTogglingLembrete] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -93,30 +92,11 @@ export default function PerfilPage() {
     }
   }, []);
 
-  const fetchCarteira = useCallback(async () => {
-    setLoadingCarteira(true);
-    try {
-      const [carteiraRes, lojaRes] = await Promise.allSettled([
-        api.get('/api/gamificacao/carteira'),
-        api.get('/api/gamificacao/loja'),
-      ]);
-      if (carteiraRes.status === 'fulfilled') setCarteira(carteiraRes.value.data);
-      if (lojaRes.status === 'fulfilled') {
-        const equipado = (lojaRes.value.data as Avatar[]).find((a) => a.equipado) ?? null;
-        setAvatarEquipado(equipado);
-      }
-    } catch (err) {
-      // non-fatal
-    } finally {
-      setLoadingCarteira(false);
-    }
-  }, []);
-
   useEffect(() => {
     fetchPerfil();
     fetchHidratacao();
-    fetchCarteira();
-  }, [fetchPerfil, fetchHidratacao, fetchCarteira]);
+    api.get('/api/gamificacao/carteira').then((r) => setCarteira(r.data)).catch(() => {});
+  }, [fetchPerfil, fetchHidratacao]);
 
   const handleEnterEdit = () => {
     if (perfil) { setNome(perfil.nome ?? ''); setPeso(String(perfil.peso ?? '')); }
@@ -193,17 +173,9 @@ export default function PerfilPage() {
             {/* Avatar */}
             <div className="relative shrink-0 self-start">
               <div className="w-20 h-20 rounded-2xl bg-navy-700 border-2 border-brand-500/60 overflow-hidden shadow-xl shadow-orange-500/20">
-                {loadingCarteira ? (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Loader2 size={28} className="text-brand-500/40 animate-spin" />
-                  </div>
-                ) : avatarEquipado?.imagemUrl ? (
-                  <img src={avatarEquipado.imagemUrl} alt={avatarEquipado.nome} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Package size={32} className="text-brand-500/50" />
-                  </div>
-                )}
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="text-3xl">🧙</span>
+                </div>
               </div>
               <div className="absolute -bottom-1.5 -right-1.5 bg-brand-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-lg leading-none shadow-md">
                 {nivel}
@@ -245,14 +217,12 @@ export default function PerfilPage() {
             </div>
 
             {/* Coins badge */}
-            {!loadingCarteira && (
-              <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl self-start sm:self-auto">
-                <Coins size={16} className="text-amber-400" />
-                <span className="text-amber-400 font-bold text-base tabular-nums">
-                  {carteira?.moedas?.toLocaleString('pt-BR') || 0}
-                </span>
-              </div>
-            )}
+            <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl self-start sm:self-auto">
+              <Coins size={16} className="text-amber-400" />
+              <span className="text-amber-400 font-bold text-base tabular-nums">
+                {carteira?.moedas?.toLocaleString('pt-BR') || 0}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -262,8 +232,8 @@ export default function PerfilPage() {
         <SectionHeader>Atributos</SectionHeader>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { icon: Star, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', label: 'Nível', value: loadingCarteira ? '—' : String(nivel) },
-            { icon: Coins, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', label: 'Moedas', value: loadingCarteira ? '—' : (carteira?.moedas || 0).toLocaleString('pt-BR') },
+            { icon: Star, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', label: 'Nível', value: String(nivel) },
+            { icon: Coins, color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/20', label: 'Moedas', value: (carteira?.moedas || 0).toLocaleString('pt-BR') },
             { icon: Zap, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20', label: 'Peso', value: loadingPerfil ? '—' : perfil?.peso ? `${perfil.peso} kg` : '—' },
             { icon: Droplets, color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20', label: 'Meta Água', value: loadingPerfil ? '—' : perfil?.metaAguaMl ? `${(perfil.metaAguaMl / 1000).toFixed(1)}L` : '—' },
           ].map(({ icon: Icon, color, bg, label, value }) => (

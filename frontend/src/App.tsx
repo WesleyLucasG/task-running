@@ -8,7 +8,7 @@ import Register from './pages/Register';
 import RecuperarSenha from './pages/RecuperarSenha';
 import Dashboard from './pages/Dashboard';
 import Atividades from './pages/Atividades';
-import Loja from './pages/Loja';
+import Inventario from './pages/Inventario';
 import Perfil from './pages/Perfil';
 
 export default function App() {
@@ -42,7 +42,8 @@ export default function App() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="atividades" element={<Atividades />} />
-            <Route path="loja" element={<Loja />} />
+            <Route path="inventario" element={<Inventario />} />
+            <Route path="loja" element={<Navigate to="/inventario" replace />} />
             <Route path="perfil" element={<Perfil />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
