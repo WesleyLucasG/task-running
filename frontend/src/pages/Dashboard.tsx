@@ -70,7 +70,10 @@ export default function Dashboard() {
     else toast.error(getApiError(p.reason));
     if (c.status === 'fulfilled') setCarteiraLegacy(c.value.data);
     if (h.status === 'fulfilled') setHidratacao(h.value.data);
-    if (j.status === 'fulfilled') setJogoEstado(j.value.data);
+    if (j.status === 'fulfilled') {
+      setJogoEstado(j.value.data);
+      console.log('[Avatar] aparencia recebida:', j.value.data?.aparencia);
+    }
     setLoading(false);
   }, []);
 
