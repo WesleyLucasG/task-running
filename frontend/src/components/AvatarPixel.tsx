@@ -1,3 +1,9 @@
+/**
+ * Porta exata do avatar pixel art do mobile (mobile/src/domain/avatarBlocos.ts).
+ * Grade 12 × 18. Renderiza as mesmas camadas/cores via SVG rect.
+ */
+import { useMemo } from 'react';
+
 export interface AparenciaDTO {
   genero: string;
   cabelo: string;
@@ -7,86 +13,115 @@ export interface AparenciaDTO {
   detalheRoupa: string;
 }
 
-function isFeminino(g: string) { return g?.toUpperCase() === 'FEMININO'; }
+// ─── constants (mobile/src/domain/avatar.ts) ─────────────────────────────────
+const OURO       = '#FACC15';
+const OURO_ESCURO = '#B45309';
+const OLHO       = '#0F172A';
+const SANDALIA   = '#92400E';
+const COR_CABELO_DEFAULT = '#3B2314';
 
-function HairTop({ cab, cabelo, espetado, semCabelo, longo }: {
-  cab: string; cabelo: string; espetado: boolean; semCabelo: boolean; longo: boolean;
-}) {
-  if (semCabelo) return null;
-  return (
-    <>
-      {/* Topo plano */}
-      <rect x="6" y="2" width="20" height="5" rx="2" fill={cab} />
-      {/* Cabelo espetado */}
-      {espetado && (
-        <>
-          <rect x="8"  y="-1" width="2" height="5" fill={cab} />
-          <rect x="12" y="-2" width="2" height="6" fill={cab} />
-          <rect x="16" y="-2" width="2" height="6" fill={cab} />
-          <rect x="20" y="-1" width="2" height="5" fill={cab} />
-        </>
-      )}
-      {/* Laterais: longo + rabo_de_cavalo + coque */}
-      {longo && (
-        <>
-          <rect x="3" y="6" width="4" height="16" rx="2" fill={cab} />
-          <rect x="25" y="6" width="4" height="16" rx="2" fill={cab} />
-        </>
-      )}
-      {/* Rabo de cavalo */}
-      {cabelo === 'RABO_DE_CAVALO' && (
-        <rect x="26" y="12" width="4" height="10" rx="2" fill={cab} />
-      )}
-      {/* Coque */}
-      {cabelo === 'COQUE' && (
-        <ellipse cx="16" cy="2" rx="5" ry="4" fill={cab} />
-      )}
-    </>
-  );
+function escurecer(hex: string, fator = 0.65): string {
+  if (!hex || !hex.startsWith('#')) return hex || '#888';
+  const n = parseInt(hex.slice(1), 16);
+  const c = (v: number) => Math.max(0, Math.min(255, Math.round(v * fator)));
+  const r = c((n >> 16) & 255);
+  const g = c((n >> 8) & 255);
+  const b = c(n & 255);
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
-function FemBody({ rou, pele }: { rou: string; pele: string }) {
-  return (
-    <>
-      {/* Pescoço */}
-      <rect x="13" y="23" width="6" height="4" fill={pele} />
-      {/* Torso */}
-      <rect x="10" y="27" width="12" height="7" rx="1" fill={rou} />
-      {/* Saia (mais larga) */}
-      <rect x="5" y="33" width="22" height="9" rx="3" fill={rou} />
-      {/* Braços */}
-      <rect x="2" y="27" width="8" height="8" rx="3" fill={rou} />
-      <rect x="22" y="27" width="8" height="8" rx="3" fill={rou} />
-      {/* Mãos */}
-      <rect x="2" y="34" width="6" height="5" rx="2" fill={pele} />
-      <rect x="24" y="34" width="6" height="5" rx="2" fill={pele} />
-      {/* Sapatos embaixo da saia */}
-      <rect x="8"  y="41" width="6" height="3" rx="1" fill="#1a1a2e" />
-      <rect x="18" y="41" width="6" height="3" rx="1" fill="#1a1a2e" />
-    </>
-  );
+type Bloco = [x: number, y: number, w: number, h: number, cor: string];
+
+// ─── blocosAvatar (porta de mobile/src/domain/avatarBlocos.ts) ────────────────
+function blocosAvatar(
+  genero: string,
+  cabelo: string,
+  corPele: string,
+  corRoupa: string,
+  corCabelo: string,
+  detalheRoupa: string,
+): Bloco[] {
+  const sombraPele   = escurecer(corPele,   0.8);
+  const sombraRoupa  = escurecer(corRoupa);
+  const sombraCabelo = escurecer(corCabelo, 0.7);
+  const feminino     = genero?.toUpperCase() === 'FEMININO';
+
+  // Normaliza detalheRoupa (backend pode salvar 'FAIXA' ou 'FAIXA_DOURADA')
+  const det = (detalheRoupa || 'SIMPLES').replace('FAIXA_DOURADA', 'FAIXA').toUpperCase();
+
+  // ── FUNDO (capa e cabelo traseiro) ────────────────────────────────────────
+  const fundo: Bloco[] = [];
+  if (det === 'CAPA') {
+    fundo.push([1, 7, 10, 7, '#991B1B'], [1, 13, 2, 1, '#7F1D1D'], [9, 13, 2, 1, '#7F1D1D']);
+  }
+  if (cabelo === 'LONGO')           fundo.push([2, 2, 8, 9, sombraCabelo]);
+  if (cabelo === 'RABO_DE_CAVALO')  fundo.push([9, 2, 2, 2, corCabelo], [10, 4, 2, 4, corCabelo], [10, 8, 1, 2, sombraCabelo]);
+  if (cabelo === 'COQUE')           fundo.push([4, 0, 4, 2, corCabelo], [5, 0, 2, 1, sombraCabelo]);
+
+  // ── CORPO ─────────────────────────────────────────────────────────────────
+  const corpo: Bloco[] = [
+    // pernas e sandálias
+    [3, 13, 2, 4, corPele],
+    [7, 13, 2, 4, corPele],
+    [3, 15, 2, 1, sombraPele],
+    [7, 15, 2, 1, sombraPele],
+    [3, 17, 2, 1, SANDALIA],
+    [7, 17, 2, 1, SANDALIA],
+    // braços
+    [2, 8, 1, 4, corPele],
+    [9, 8, 1, 4, corPele],
+    [2, 11, 1, 1, OURO],  // braceletes
+    [9, 11, 1, 1, OURO],
+    // pescoço e cabeça
+    [5, 6, 2, 1, sombraPele],
+    [3, 2, 6, 5, corPele],
+    [4, 4, 1, 1, OLHO],
+    [7, 4, 1, 1, OLHO],
+    [5, 6, 2, 1, escurecer(corPele, 0.7)],
+  ];
+
+  // ── ROUPA ─────────────────────────────────────────────────────────────────
+  const roupa: Bloco[] = [
+    [3, 7, 6, 5, corRoupa],                            // túnica
+    [3, 7, 6, 1, sombraRoupa],
+    feminino ? [2, 11, 8, 3, corRoupa] : [3, 11, 6, 2, corRoupa],   // saia / barra
+    feminino ? [2, 13, 8, 1, sombraRoupa] : [3, 12, 6, 1, sombraRoupa],
+    [2, 7, 1, 1, OURO],                                // ombreiras
+    [9, 7, 1, 1, OURO],
+    [3, 10, 6, 1, OURO_ESCURO],                        // cinto
+  ];
+  if (det === 'FAIXA') roupa.push([4, 7, 1, 1, OURO], [5, 8, 1, 1, OURO], [6, 9, 1, 1, OURO], [7, 10, 1, 1, OURO]);
+  if (det === 'CAPA')  roupa.push([3, 7, 1, 1, '#B91C1C'], [8, 7, 1, 1, '#B91C1C']);
+
+  // ── CABELO (frente) ───────────────────────────────────────────────────────
+  const cabeloBlocos: Bloco[] = [];
+  switch (cabelo) {
+    case 'CURTO':
+      cabeloBlocos.push([3, 1, 6, 2, corCabelo], [3, 3, 1, 1, corCabelo], [8, 3, 1, 1, corCabelo], [4, 1, 3, 1, sombraCabelo]);
+      break;
+    case 'ESPETADO':
+      cabeloBlocos.push([3, 0, 1, 1, corCabelo], [5, 0, 1, 1, corCabelo], [7, 0, 1, 1, corCabelo]);
+      cabeloBlocos.push([3, 1, 6, 2, corCabelo], [2, 2, 1, 2, corCabelo], [9, 2, 1, 2, corCabelo], [4, 2, 1, 1, sombraCabelo]);
+      break;
+    case 'RASPADO':
+      cabeloBlocos.push([3, 1, 6, 1, sombraCabelo]);
+      break;
+    case 'LONGO':
+      cabeloBlocos.push([3, 1, 6, 2, corCabelo], [2, 2, 1, 7, corCabelo], [9, 2, 1, 7, corCabelo], [3, 3, 1, 1, corCabelo]);
+      break;
+    case 'RABO_DE_CAVALO':
+      cabeloBlocos.push([3, 1, 6, 2, corCabelo], [3, 3, 1, 1, corCabelo], [9, 3, 1, 1, '#DC2626']);
+      break;
+    case 'COQUE':
+      cabeloBlocos.push([3, 1, 6, 2, corCabelo], [3, 3, 1, 1, corCabelo], [8, 3, 1, 1, corCabelo]);
+      break;
+  }
+  if (feminino) cabeloBlocos.push([4, 1, 4, 1, OURO]); // diadema dourado
+
+  return [...fundo, ...corpo, ...roupa, ...cabeloBlocos];
 }
 
-function MascBody({ rou, pele }: { rou: string; pele: string }) {
-  return (
-    <>
-      {/* Pescoço */}
-      <rect x="13" y="23" width="6" height="4" fill={pele} />
-      {/* Torso largo */}
-      <rect x="5" y="27" width="22" height="11" rx="2" fill={rou} />
-      {/* Braços */}
-      <rect x="0" y="27" width="6" height="9" rx="2" fill={rou} />
-      <rect x="26" y="27" width="6" height="9" rx="2" fill={rou} />
-      {/* Mãos */}
-      <rect x="1"  y="34" width="5" height="5" rx="2" fill={pele} />
-      <rect x="26" y="34" width="5" height="5" rx="2" fill={pele} />
-      {/* Calças */}
-      <rect x="6"  y="38" width="8" height="6" rx="1" fill="#2d3748" />
-      <rect x="18" y="38" width="8" height="6" rx="1" fill="#2d3748" />
-    </>
-  );
-}
-
+// ─── Componente ──────────────────────────────────────────────────────────────
 export default function AvatarPixel({
   aparencia,
   size = 48,
@@ -94,77 +129,40 @@ export default function AvatarPixel({
   aparencia: AparenciaDTO | null;
   size?: number;
 }) {
-  if (!aparencia) {
+  const blocos = useMemo(() => {
+    if (!aparencia) return null;
+    return blocosAvatar(
+      aparencia.genero      || 'NEUTRO',
+      aparencia.cabelo      || 'CURTO',
+      aparencia.corPele     || '#C68642',
+      aparencia.corRoupa    || '#3B82F6',
+      aparencia.corCabelo   || COR_CABELO_DEFAULT,
+      aparencia.detalheRoupa || 'SIMPLES',
+    );
+  }, [aparencia]);
+
+  if (!blocos) {
     return (
       <div
-        style={{ width: size, height: size }}
-        className="flex items-center justify-center text-3xl"
+        style={{ width: size, height: Math.round(size * 1.5) }}
+        className="flex items-center justify-center text-2xl"
       >
         🧙
       </div>
     );
   }
 
-  const pele = aparencia.corPele || '#c68642';
-  const cab  = aparencia.corCabelo || '#3d2b1f';
-  const rou  = aparencia.corRoupa || '#3b82f6';
-  const fem  = isFeminino(aparencia.genero);
-  const cabelo = aparencia.cabelo || 'CURTO';
-  const semCabelo = cabelo === 'RASPADO';
-  const longo     = ['LONGO', 'RABO_DE_CAVALO', 'COQUE'].includes(cabelo);
-  const espetado  = cabelo === 'ESPETADO';
-
-  const h = Math.round(size * (44 / 32));
-
   return (
     <svg
-      viewBox="0 0 32 44"
+      viewBox="0 0 12 18"
       width={size}
-      height={h}
+      height={Math.round(size * 1.5)}
       xmlns="http://www.w3.org/2000/svg"
       style={{ imageRendering: 'pixelated', display: 'block' }}
     >
-      {/* ── CABELO ATRÁS DA CABEÇA ── */}
-      <HairTop cab={cab} cabelo={cabelo} espetado={espetado} semCabelo={semCabelo} longo={longo} />
-
-      {/* ── CABEÇA ── */}
-      <rect x="5" y="5" width="22" height="18" rx="3" fill={pele} />
-
-      {/* ── CÍLIOS (só feminino) ── */}
-      {fem && (
-        <>
-          <rect x="9"  y="9" width="6" height="1" fill="#111" />
-          <rect x="17" y="9" width="6" height="1" fill="#111" />
-          <rect x="9"  y="8" width="1" height="2" fill="#111" />
-          <rect x="14" y="8" width="1" height="2" fill="#111" />
-          <rect x="17" y="8" width="1" height="2" fill="#111" />
-          <rect x="22" y="8" width="1" height="2" fill="#111" />
-        </>
-      )}
-
-      {/* ── OLHOS ── */}
-      <rect x="10" y="11" width="4" height={fem ? 4 : 3} rx="1" fill="#1a1a2e" />
-      <rect x="18" y="11" width="4" height={fem ? 4 : 3} rx="1" fill="#1a1a2e" />
-      {/* Brilho nos olhos */}
-      <rect x="11" y="11" width="1" height="1" fill="#fff" />
-      <rect x="19" y="11" width="1" height="1" fill="#fff" />
-
-      {/* ── BOCHECHA (feminino) ── */}
-      {fem && (
-        <>
-          <rect x="7"  y="16" width="3" height="2" rx="1" fill={pele} opacity="0" />
-        </>
-      )}
-
-      {/* ── BOCA ── */}
-      <rect x="12" y="17" width="8" height="2" rx="1" fill={fem ? '#e06080' : '#a04030'} />
-      {fem && <rect x="13" y="17" width="6" height="1" rx="0" fill="#f090a8" />}
-
-      {/* ── CORPO ── */}
-      {fem
-        ? <FemBody rou={rou} pele={pele} />
-        : <MascBody rou={rou} pele={pele} />
-      }
+      {blocos.map(([x, y, w, h, cor], i) => (
+        <rect key={i} x={x} y={y} width={w} height={h} fill={cor} />
+      ))}
     </svg>
   );
 }
