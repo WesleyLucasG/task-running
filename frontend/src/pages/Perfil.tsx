@@ -7,6 +7,9 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api, { getApiError } from '../services/api';
+import AvatarPixel from '../components/AvatarPixel';
+import LastRunMap from '../components/LastRunMap';
+import type { AparenciaDTO } from '../components/AvatarPixel';
 
 interface PerfilData {
   id: number;
@@ -51,6 +54,7 @@ export default function PerfilPage() {
   const [perfil, setPerfil] = useState<PerfilData | null>(null);
   const [hidratacao, setHidratacao] = useState<Hidratacao | null>(null);
   const [carteira, setCarteira] = useState<Carteira | null>(null);
+  const [aparencia, setAparencia] = useState<AparenciaDTO | null>(null);
   const [loadingPerfil, setLoadingPerfil] = useState(true);
   const [loadingHidratacao, setLoadingHidratacao] = useState(true);
   const [editMode, setEditMode] = useState(false);
@@ -93,6 +97,10 @@ export default function PerfilPage() {
     fetchPerfil();
     fetchHidratacao();
     api.get('/api/gamificacao/carteira').then((r) => setCarteira(r.data)).catch(() => {});
+    api.get('/api/jogo/estado').then((r) => {
+      if (r.data?.carteira) setCarteira(r.data.carteira);
+      if (r.data?.aparencia) setAparencia(r.data.aparencia);
+    }).catch(() => {});
   }, [fetchPerfil, fetchHidratacao]);
 
   const handleEnterEdit = () => {
@@ -156,7 +164,9 @@ export default function PerfilPage() {
   const labelClass = 'block text-xs font-bold tracking-widest uppercase text-slate-400 mb-2';
 
   return (
-    <div className="space-y-5 max-w-2xl">
+    <div className="max-w-5xl">
+    <div className="lg:grid lg:grid-cols-[1fr_280px] gap-5 items-start">
+    <div className="space-y-5">
 
       {/* ── PROFILE BANNER ── */}
       <div
@@ -169,10 +179,8 @@ export default function PerfilPage() {
           <div className="flex flex-col sm:flex-row sm:items-end gap-5">
             {/* Avatar */}
             <div className="relative shrink-0 self-start">
-              <div className="w-20 h-20 rounded-2xl bg-navy-700 border-2 border-brand-500/60 overflow-hidden shadow-xl shadow-orange-500/20">
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-3xl">🧙</span>
-                </div>
+              <div className="w-20 h-20 rounded-2xl bg-navy-700 border-2 border-brand-500/60 overflow-hidden shadow-xl shadow-orange-500/20 flex items-center justify-center">
+                <AvatarPixel aparencia={aparencia} size={56} />
               </div>
               <div className="absolute -bottom-1.5 -right-1.5 bg-brand-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-lg leading-none shadow-md">
                 {nivel}
@@ -427,6 +435,13 @@ export default function PerfilPage() {
         </div>
       )}
 
+    </div>
+
+    <div className="mt-5 lg:mt-0">
+      <LastRunMap />
+    </div>
+
+    </div>
     </div>
   );
 }
