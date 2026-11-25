@@ -55,6 +55,7 @@ public class SecurityConfigurations {
                             "/webjars/**"
                     ).permitAll();
 
+                    req.requestMatchers("/api/admin/**").hasRole("ADM");
                     req.anyRequest().authenticated();
                 })
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)

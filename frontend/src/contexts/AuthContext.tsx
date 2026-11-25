@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { isAdminToken } from '../utils/jwt';
 
 interface AuthContextType {
   token: string | null;
   login: (token: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -23,7 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ token, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{ token, login, logout, isAuthenticated: !!token, isAdmin: isAdminToken(token) }}>
       {children}
     </AuthContext.Provider>
   );

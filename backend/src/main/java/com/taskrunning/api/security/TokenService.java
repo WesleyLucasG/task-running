@@ -24,6 +24,7 @@ public class TokenService {
             return JWT.create()
                     .withIssuer("task-running-api")
                     .withSubject(String.valueOf(usuario.getId())) // id: o CPF não vai no token
+                    .withClaim("perfil", usuario.getPerfil().name())
                     .withExpiresAt(gerarDataExpiracao())
                     .sign(algorithm);
         } catch (JWTCreationException exception) {

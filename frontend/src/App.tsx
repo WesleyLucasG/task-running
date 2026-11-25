@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
+import AdminRoute from './components/AdminRoute';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -10,6 +11,7 @@ import Dashboard from './pages/Dashboard';
 import Atividades from './pages/Atividades';
 import Inventario from './pages/Inventario';
 import Perfil from './pages/Perfil';
+import AdminLogs from './pages/AdminLogs';
 
 export default function App() {
   return (
@@ -45,6 +47,14 @@ export default function App() {
             <Route path="inventario" element={<Inventario />} />
             <Route path="loja" element={<Navigate to="/inventario" replace />} />
             <Route path="perfil" element={<Perfil />} />
+            <Route
+              path="admin/logs"
+              element={
+                <AdminRoute>
+                  <AdminLogs />
+                </AdminRoute>
+              }
+            />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Activity, Package, User, LogOut, Swords } from 'lucide-react';
+import { LayoutDashboard, Activity, Package, User, LogOut, Swords, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -11,7 +11,7 @@ const navItems = [
 ];
 
 export default function Sidebar() {
-  const { logout } = useAuth();
+  const { logout, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -78,6 +78,43 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* Admin section */}
+      {isAdmin && (
+        <div className="relative z-10 px-3 pb-2">
+          <div className="flex items-center gap-2 px-4 mb-1">
+            <div className="flex-1 h-px bg-red-500/20" />
+            <span className="text-[9px] font-black tracking-widest uppercase text-red-500/60">Admin</span>
+            <div className="flex-1 h-px bg-red-500/20" />
+          </div>
+          <NavLink
+            to="/admin/logs"
+            className={({ isActive }) =>
+              `group flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative overflow-hidden ${
+                isActive
+                  ? 'bg-red-500/15 border border-red-500/30 text-white'
+                  : 'text-slate-500 hover:text-white hover:bg-red-500/5 border border-transparent'
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <>
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-red-500 rounded-full" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-transparent pointer-events-none" />
+                  </>
+                )}
+                <ShieldAlert size={18} className={isActive ? 'text-red-400' : 'text-red-500/50 group-hover:text-red-400 transition-colors'} />
+                <span className="font-bold tracking-wider text-xs uppercase">Logs</span>
+                {isActive && (
+                  <div className="ml-auto w-1.5 h-1.5 rounded-full bg-red-500 shadow-sm shadow-red-500/50" />
+                )}
+              </>
+            )}
+          </NavLink>
+        </div>
+      )}
 
       {/* Divider with icon */}
       <div className="relative z-10 px-5 flex items-center gap-3 mb-2">
